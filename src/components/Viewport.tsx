@@ -52,7 +52,7 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
     [cameraIndex, updateCamera],
   );
 
-  const { isDragging, cameraRef, handlers: orbitHandlers } = useOrbitCamera(
+  const { isDragging, handlers: orbitHandlers } = useOrbitCamera(
     camera,
     handleCameraChange,
   );
@@ -61,7 +61,7 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   const [cssScale, setCssScale] = useState(1);
   const targetZoomRef = useRef(camera.zoom ?? 1);
   const renderedZoomRef = useRef(camera.zoom ?? 1);
-  const zoomTimer = useRef<ReturnType<typeof setTimeout>>();
+  const zoomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Keep target zoom in sync with external changes (e.g. from Properties panel)
   useEffect(() => {

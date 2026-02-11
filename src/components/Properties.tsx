@@ -2,6 +2,7 @@ import { useSceneStore } from '../lib/store';
 import { CAMERA_PRESETS } from '../lib/cameras';
 import type {
   Vec3,
+  SceneNode,
   CubeParams,
   SphereParams,
   ConeParams,
@@ -49,7 +50,6 @@ export function Properties() {
       <aside className="properties">
         <CameraControls
           camera={cameras[activeCameraIndex]}
-          cameraIndex={activeCameraIndex}
           onChange={(updates) => updateCamera(activeCameraIndex, updates)}
         />
       </aside>
@@ -61,7 +61,6 @@ export function Properties() {
       {/* Camera controls always at top */}
       <CameraControls
         camera={cameras[activeCameraIndex]}
-        cameraIndex={activeCameraIndex}
         onChange={(updates) => updateCamera(activeCameraIndex, updates)}
       />
 
@@ -140,7 +139,7 @@ function ShapeParamsEditor({
   node,
   onChange,
 }: {
-  node: { type: string; params: Record<string, unknown> };
+  node: SceneNode;
   onChange: (p: Record<string, unknown>) => void;
 }) {
   const p = node.params;
@@ -987,11 +986,9 @@ function CubeGridEditor({
 
 function CameraControls({
   camera,
-  cameraIndex,
   onChange,
 }: {
   camera: CameraConfig;
-  cameraIndex: number;
   onChange: (updates: Partial<CameraConfig>) => void;
 }) {
   return (

@@ -29,7 +29,7 @@ export class PointCloud {
     return false; // Points don't occlude anything
   }
 
-  intersect(_r: ln.Ray): ln.Hit {
+  intersect(_r: ln.Ray): typeof ln.NoHit {
     return ln.NoHit;
   }
 

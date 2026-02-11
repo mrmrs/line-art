@@ -118,7 +118,7 @@ export interface SceneStore {
 const restored = loadFromStorage();
 
 export const useSceneStore = create<SceneStore>()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector((set, _get) => ({
   // --- Initial state (restored from localStorage if available) ---
   nodes: restored?.nodes ?? [],
   selectedId: null,
@@ -167,7 +167,9 @@ export const useSceneStore = create<SceneStore>()(
   updateNodeParams: (id, paramUpdates) => {
     set((s) => ({
       nodes: s.nodes.map((n) =>
-        n.id === id ? { ...n, params: { ...n.params, ...paramUpdates } } : n,
+        n.id === id
+          ? { ...n, params: { ...n.params, ...paramUpdates } as ShapeParams }
+          : n,
       ),
       renderVersion: s.renderVersion + 1,
     }));

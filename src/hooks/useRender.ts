@@ -21,7 +21,7 @@ export function useRender(
     pathCount: 0,
   });
   const [rendering, setRendering] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const renderCountRef = useRef(0);
 
   useEffect(() => {

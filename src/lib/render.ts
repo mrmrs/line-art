@@ -652,7 +652,7 @@ export function renderScene(
         );
 
     for (const path of extraPaths) {
-      const projected: ln.Path = [];
+      const projected: ln.Vector[] = [];
       for (const v of path) {
         const p = matrix.mulPositionW(v);
         // Convert from NDC (-1 to 1) to screen coordinates
