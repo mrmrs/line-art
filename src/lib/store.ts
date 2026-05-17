@@ -118,7 +118,7 @@ export interface SceneStore {
 const restored = loadFromStorage();
 
 export const useSceneStore = create<SceneStore>()(
-  subscribeWithSelector((set, _get) => ({
+  subscribeWithSelector((set) => ({
   // --- Initial state (restored from localStorage if available) ---
   nodes: restored?.nodes ?? [],
   selectedId: null,

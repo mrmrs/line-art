@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CameraConfig, Vec3 } from '../lib/types';
 import { cartesianToSpherical, sphericalToCartesian } from '../lib/cameras';
 
@@ -38,10 +38,12 @@ export function useOrbitCamera(
   // Sync cameraRef whenever the external camera changes and we're NOT dragging.
   // Use object reference identity — zustand creates new objects on each update.
   const prevCameraObjRef = useRef(initial);
-  if (initial !== prevCameraObjRef.current && !dragRef.current) {
-    cameraRef.current = { ...initial };
-    prevCameraObjRef.current = initial;
-  }
+  useEffect(() => {
+    if (initial !== prevCameraObjRef.current && !dragRef.current) {
+      cameraRef.current = { ...initial };
+      prevCameraObjRef.current = initial;
+    }
+  }, [initial]);
 
   // Throttled camera push: at most once per animation frame
   const pushCamera = useCallback(

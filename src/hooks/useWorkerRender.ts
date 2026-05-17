@@ -25,6 +25,17 @@ export function useWorkerRender(
   const [rendering, setRendering] = useState(false);
   const workerRef = useRef<Worker | null>(null);
   const latestIdRef = useRef(0);
+  const renderingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const emptyResult: RenderResult | null =
+    width > 0 && height > 0 && nodes.length === 0
+      ? {
+          svg:
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+            `viewBox="0 0 ${width} ${height}" style="background:${settings.backgroundColor}"></svg>`,
+          renderTimeMs: 0,
+          pathCount: 0,
+        }
+      : null;
 
   // --- Initialize worker ---
   useEffect(() => {
@@ -38,6 +49,7 @@ export function useWorkerRender(
       if (msg.type === 'result') {
         // Only accept the result if it's from our latest request
         if (msg.id >= latestIdRef.current) {
+          if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
           setResult({
             svg: msg.svg,
             renderTimeMs: msg.renderTimeMs,
@@ -47,30 +59,31 @@ export function useWorkerRender(
         }
       } else if (msg.type === 'error') {
         console.error('Worker render error:', msg.error);
+        if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
         setRendering(false);
       }
     };
 
     worker.onerror = (e) => {
       console.error('Worker error:', e);
+      if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
       setRendering(false);
     };
 
     workerRef.current = worker;
-    return () => worker.terminate();
+    return () => {
+      if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
+      worker.terminate();
+    };
   }, []);
 
   // --- Send render requests ---
   useEffect(() => {
     if (width <= 0 || height <= 0 || !workerRef.current) return;
 
-    // Empty scene: produce blank SVG locally (no worker needed)
     if (nodes.length === 0) {
-      const blankSvg =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
-        `viewBox="0 0 ${width} ${height}" style="background:${settings.backgroundColor}"></svg>`;
-      setResult({ svg: blankSvg, renderTimeMs: 0, pathCount: 0 });
-      setRendering(false);
+      latestIdRef.current += 1;
+      if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
       return;
     }
 
@@ -80,7 +93,10 @@ export function useWorkerRender(
       : settings;
 
     const id = ++latestIdRef.current;
-    setRendering(true);
+    if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
+    renderingTimerRef.current = setTimeout(() => {
+      if (id === latestIdRef.current) setRendering(true);
+    }, 0);
 
     workerRef.current.postMessage({
       type: 'render',
@@ -93,5 +109,5 @@ export function useWorkerRender(
     });
   }, [nodes, camera, width, height, settings, isDragging]);
 
-  return { ...result, rendering };
+  return emptyResult ? { ...emptyResult, rendering: false } : { ...result, rendering };
 }

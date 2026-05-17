@@ -26,10 +26,13 @@ export class PointCloud {
   }
 
   contains(_v: ln.Vector, _f: number): boolean {
+    void _v;
+    void _f;
     return false; // Points don't occlude anything
   }
 
   intersect(_r: ln.Ray): typeof ln.NoHit {
+    void _r;
     return ln.NoHit;
   }
 

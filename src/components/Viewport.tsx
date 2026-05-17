@@ -67,7 +67,8 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   useEffect(() => {
     targetZoomRef.current = camera.zoom ?? 1;
     renderedZoomRef.current = camera.zoom ?? 1;
-    setCssScale(1);
+    const timer = setTimeout(() => setCssScale(1), 0);
+    return () => clearTimeout(timer);
   }, [camera.zoom]);
 
   // --- Worker render ---
@@ -86,16 +87,20 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
     if (svg && svg !== prevSvgRef.current) {
       prevSvgRef.current = svg;
       renderedZoomRef.current = camera.zoom ?? 1;
-      setCssScale(1);
+      const timer = setTimeout(() => setCssScale(1), 0);
+      return () => clearTimeout(timer);
     }
   }, [svg, camera.zoom]);
 
   // --- Scroll-to-zoom: native listener with { passive: false } to allow preventDefault ---
   const overlayRef = useRef<HTMLDivElement>(null);
   const cameraIndexRef = useRef(cameraIndex);
-  cameraIndexRef.current = cameraIndex;
   const updateCameraRef = useRef(updateCamera);
-  updateCameraRef.current = updateCamera;
+
+  useEffect(() => {
+    cameraIndexRef.current = cameraIndex;
+    updateCameraRef.current = updateCamera;
+  }, [cameraIndex, updateCamera]);
 
   useEffect(() => {
     const el = overlayRef.current;

@@ -35,10 +35,10 @@ export function useRender(
       ? { ...settings, step: Math.max(settings.step, 0.1) }
       : settings;
 
-    setRendering(true);
     const currentRender = ++renderCountRef.current;
 
     timerRef.current = setTimeout(() => {
+      setRendering(true);
       try {
         if (nodes.length === 0) {
           // Empty scene: just produce blank SVG
@@ -67,7 +67,6 @@ export function useRender(
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, camera, width, height, settings, isDragging, renderVersion]);
 
   return { ...result, rendering };
