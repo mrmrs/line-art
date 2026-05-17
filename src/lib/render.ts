@@ -25,6 +25,7 @@ import { generateCubeGrid, noise3d } from './cube-grid';
 import { generateAutomataGrid } from './automata-grid';
 import { extrudeFromParams } from './svg-extrude';
 import { buildFillHost, generateFillPaths, FillShape } from './fills';
+import { tessellateCube, tessellateSphere, tessellateCone, tessellateCylinder } from './tessellate';
 import type { SvgExtrudeParams, TextExtrudeParams } from './types';
 
 // =============================================================================
@@ -92,6 +93,25 @@ function getHostTriangles(node: SceneNode): ln.Triangle[] | null {
     let tris = meshTriangleCache.get(cacheKey);
     if (!tris) {
       tris = extrudeFromParams(p);
+      if (!tris || tris.length === 0) return null;
+      for (const k of meshTriangleCache.keys()) {
+        if (k.startsWith(`${node.id}|`) && k !== cacheKey) meshTriangleCache.delete(k);
+      }
+      meshTriangleCache.set(cacheKey, tris);
+    }
+    return tris;
+  }
+  // Primitives: tessellate to triangles so Fills + slicing work on them too.
+  if (node.type === 'cube' || node.type === 'sphere' || node.type === 'cone' || node.type === 'cylinder') {
+    const cacheKey = `${node.id}|prim|${paramsHash(node.params)}`;
+    let tris = meshTriangleCache.get(cacheKey);
+    if (!tris) {
+      switch (node.type) {
+        case 'cube':     tris = tessellateCube(node.params as CubeParams); break;
+        case 'sphere':   tris = tessellateSphere(node.params as SphereParams); break;
+        case 'cone':     tris = tessellateCone(node.params as ConeParams); break;
+        case 'cylinder': tris = tessellateCylinder(node.params as CylinderParams); break;
+      }
       if (!tris || tris.length === 0) return null;
       for (const k of meshTriangleCache.keys()) {
         if (k.startsWith(`${node.id}|`) && k !== cacheKey) meshTriangleCache.delete(k);
@@ -408,26 +428,34 @@ function createShapes(
 
 function createSlicedPaths(
   node: SceneNode,
-  allNodes: SceneNode[],
+  _allNodes: SceneNode[],
 ): ln.Paths {
-  const shape = createShape(
-    { ...node, slicing: { ...node.slicing, enabled: false } },
-    allNodes,
-  );
-  if (!shape) return [];
+  void _allNodes;
+  // Use the tessellated/extracted triangles directly so primitives, mesh,
+  // svg-extrude, and text-extrude all slice with one code path.
+  const hostTris = getHostTriangles(node);
+  if (!hostTris || hostTris.length === 0) return [];
+  const worldTris = transformTriangles(hostTris, node.transform);
+  const mesh = new ln.Mesh(worldTris);
 
-  const box = shape.boundingBox();
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (const t of worldTris) {
+    minX = Math.min(minX, t.v1.x, t.v2.x, t.v3.x);
+    minY = Math.min(minY, t.v1.y, t.v2.y, t.v3.y);
+    minZ = Math.min(minZ, t.v1.z, t.v2.z, t.v3.z);
+    maxX = Math.max(maxX, t.v1.x, t.v2.x, t.v3.x);
+    maxY = Math.max(maxY, t.v1.y, t.v2.y, t.v3.y);
+    maxZ = Math.max(maxZ, t.v1.z, t.v2.z, t.v3.z);
+  }
+
   const slicing = node.slicing;
-  const allPaths: ln.Paths = [];
-
-  const axisMap = { x: 0, y: 1, z: 2 } as const;
-  const axisIdx = axisMap[slicing.axis];
-
-  const minVal = axisIdx === 0 ? box.min.x : axisIdx === 1 ? box.min.y : box.min.z;
-  const maxVal = axisIdx === 0 ? box.max.x : axisIdx === 1 ? box.max.y : box.max.z;
-
+  const axisIdx = slicing.axis === 'x' ? 0 : slicing.axis === 'y' ? 1 : 2;
+  const minVal = axisIdx === 0 ? minX : axisIdx === 1 ? minY : minZ;
+  const maxVal = axisIdx === 0 ? maxX : axisIdx === 1 ? maxY : maxZ;
   const step = (maxVal - minVal) / (slicing.count + 1);
 
+  const allPaths: ln.Paths = [];
   for (let i = 1; i <= slicing.count; i++) {
     const val = minVal + step * i;
     const point = new ln.Vector(
@@ -441,28 +469,10 @@ function createSlicedPaths(
       axisIdx === 2 ? 1 : 0,
     );
     const plane = new ln.Plane(point, normal);
-
-    // intersectMesh only works on Mesh. Build a temp scene to get paths.
-    if (node.type === 'mesh' || node.type === 'svg-extrude' || node.type === 'text-extrude') {
-      const meshShape = createShape(
-        { ...node, slicing: { ...node.slicing, enabled: false } },
-        allNodes,
-      );
-      if (meshShape) {
-        try {
-          // Access underlying mesh for plane intersection
-          const actualMesh = meshShape instanceof ln.TransformedShape
-            ? (meshShape as unknown as { shape: ln.Mesh }).shape
-            : meshShape as unknown as ln.Mesh;
-          if (actualMesh && typeof actualMesh.triangles !== 'undefined') {
-            const slicePaths = plane.intersectMesh(actualMesh);
-            allPaths.push(...slicePaths);
-          }
-        } catch {
-          // Fallback: skip this slice
-        }
-      }
-    }
+    try {
+      const slicePaths = plane.intersectMesh(mesh);
+      allPaths.push(...slicePaths);
+    } catch { /* skip degenerate slices */ }
   }
 
   return allPaths;
@@ -724,7 +734,7 @@ export function renderScene(
   width: number,
   height: number,
   settings: RenderSettings,
-  options: RenderOptions = {},
+  options: RenderOptions & { physical?: PhysicalSize } = {},
 ): RenderResult {
   const start = performance.now();
   const scene = new ln.Scene();
@@ -900,7 +910,7 @@ export function renderScene(
     }
   }
 
-  const svg = toStyledSVG(paths, width, height, settings);
+  const svg = toStyledSVG(paths, width, height, settings, options.physical);
   const elapsed = performance.now() - start;
 
   // Prune cache entries for nodes that no longer exist (auto-cleanup; works
@@ -924,17 +934,25 @@ export function renderScene(
 
 // --- Custom SVG output with configurable styling ---
 
+// Physical dimensions for the export SVG. When provided, the <svg> width and
+// height use the physical units string (e.g. "210mm") while viewBox stays in
+// pixel space. This makes the output print/plot at correct physical size.
+export interface PhysicalSize { width: string; height: string; }
+
 function toStyledSVG(
   paths: ln.Paths,
   width: number,
   height: number,
   settings: RenderSettings,
+  physical?: PhysicalSize,
 ): string {
   const { strokeWidth, strokeColor, backgroundColor } = settings;
   const lines: string[] = [];
 
+  const wAttr = physical?.width ?? `${width}`;
+  const hAttr = physical?.height ?? `${height}`;
   lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${wAttr}" height="${hAttr}" ` +
     `viewBox="0 0 ${width} ${height}" ` +
     `style="background:${backgroundColor}">`,
   );
@@ -1032,11 +1050,14 @@ export function multiPenSvg(
   height: number,
   settings: RenderSettings,
   penColors: Record<number, string> = {},
+  physical?: PhysicalSize,
 ): string {
   const { strokeWidth, strokeColor, backgroundColor } = settings;
   const lines: string[] = [];
+  const wAttr = physical?.width ?? `${width}`;
+  const hAttr = physical?.height ?? `${height}`;
   lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${wAttr}" height="${hAttr}" ` +
     `viewBox="0 0 ${width} ${height}" style="background:${backgroundColor}">`,
   );
   lines.push(`<g transform="translate(0,${height}) scale(1,-1)">`);

@@ -9,11 +9,15 @@ import type { SceneNode, ShapeType } from '../../lib/types';
 // =============================================================================
 
 // Shapes that have a real mesh form (slicing, fills, contour all work on these).
-// OBJ/STL meshes, SVG extrude, and text extrude are all triangle-based.
+// OBJ/STL meshes, SVG/text extrudes, and primitives (tessellated on demand).
 export const MESH_LIKE: ReadonlySet<ShapeType> = new Set<ShapeType>([
   'mesh',
   'svg-extrude',
   'text-extrude',
+  'cube',
+  'sphere',
+  'cone',
+  'cylinder',
 ]);
 
 // Shapes that emit transformable shapes — i.e. the node-level transform applies.

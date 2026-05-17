@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useSceneStore } from '../lib/store';
 import { PRESETS } from '../lib/presets';
 import { DEFAULT_TRANSFORM } from '../lib/types';
@@ -99,7 +99,9 @@ const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] =
 export function Sidebar() {
   const nodes = useSceneStore((s) => s.nodes);
   const selectedId = useSceneStore((s) => s.selectedId);
+  const selectedIds = useSceneStore((s) => s.selectedIds);
   const selectNode = useSceneStore((s) => s.selectNode);
+  const moveNode = useSceneStore((s) => s.moveNode);
   const toggleNodeVisibility = useSceneStore((s) => s.toggleNodeVisibility);
   const removeNode = useSceneStore((s) => s.removeNode);
   const addNode = useSceneStore((s) => s.addNode);
@@ -108,6 +110,11 @@ export function Sidebar() {
   const clearScene = useSceneStore((s) => s.clearScene);
   const loadFiles = useFileLoader();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag state for reordering. We only need to know which row is being
+  // dragged and which row the pointer is currently over.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   return (
     <aside className="sidebar">
@@ -129,42 +136,77 @@ export function Sidebar() {
               No shapes yet. Add one below or drop an OBJ/STL file.
             </div>
           )}
-          {nodes.map((node) => (
-            <div
-              key={node.id}
-              className={`scene-tree-item ${selectedId === node.id ? 'selected' : ''}`}
-              onClick={() => selectNode(node.id)}
-            >
-              <button
-                className={`btn-icon visibility-toggle ${node.visible ? 'visible' : 'hidden'}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleNodeVisibility(node.id);
+          {nodes.map((node, idx) => {
+            const isSelected = selectedIds.includes(node.id);
+            const isPrimary = selectedId === node.id;
+            const isDragOver = overId === node.id && dragId !== node.id;
+            return (
+              <div
+                key={node.id}
+                className={
+                  `scene-tree-item${isSelected ? ' selected' : ''}` +
+                  `${isPrimary && selectedIds.length > 1 ? ' primary' : ''}` +
+                  `${isDragOver ? ' drag-over' : ''}`
+                }
+                draggable
+                onClick={(e) => selectNode(node.id, e.metaKey || e.ctrlKey)}
+                onDragStart={(e) => {
+                  setDragId(node.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', node.id);
                 }}
-                title={node.visible ? 'Hide' : 'Show'}
-              >
-                {node.visible ? '\u25C9' : '\u25CE'}
-              </button>
-              <span className="scene-tree-icon">
-                {SHAPE_ICONS[node.type] || '\u25A0'}
-              </span>
-              <span className="scene-tree-name">{node.name}</span>
-              {(() => {
-                const c = nodeComplexity(node);
-                return c ? <span className="scene-tree-badge">{c}</span> : null;
-              })()}
-              <button
-                className="btn-icon delete-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeNode(node.id);
+                onDragEnd={() => { setDragId(null); setOverId(null); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (overId !== node.id) setOverId(node.id);
                 }}
-                title="Delete"
+                onDragLeave={() => { if (overId === node.id) setOverId(null); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const sourceId = e.dataTransfer.getData('text/plain') || dragId;
+                  if (sourceId && sourceId !== node.id) moveNode(sourceId, idx);
+                  setDragId(null); setOverId(null);
+                }}
               >
-                {'\u00D7'}
-              </button>
-            </div>
-          ))}
+                <button
+                  className={`btn-icon visibility-toggle ${node.visible ? 'visible' : 'hidden'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleNodeVisibility(node.id);
+                  }}
+                  title={node.visible ? 'Hide' : 'Show'}
+                >
+                  {node.visible ? '\u25C9' : '\u25CE'}
+                </button>
+                <span className="scene-tree-icon">
+                  {SHAPE_ICONS[node.type] || '\u25A0'}
+                </span>
+                <span className="scene-tree-name">{node.name}</span>
+                {(() => {
+                  const c = nodeComplexity(node);
+                  return c ? <span className="scene-tree-badge">{c}</span> : null;
+                })()}
+                <button
+                  className="btn-icon delete-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // If this node is part of a multi-selection, delete all of them.
+                    if (selectedIds.length > 1 && selectedIds.includes(node.id)) {
+                      for (const sid of selectedIds) removeNode(sid);
+                    } else {
+                      removeNode(node.id);
+                    }
+                  }}
+                  title={selectedIds.length > 1 && selectedIds.includes(node.id)
+                    ? `Delete ${selectedIds.length} selected`
+                    : 'Delete'}
+                >
+                  {'\u00D7'}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 

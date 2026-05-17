@@ -80,7 +80,11 @@ function loadFromStorage(): Partial<SavedState> | null {
 export interface SceneStore {
   // --- State ---
   nodes: SceneNode[];
+  // Primary selection (what Properties edits). Null when nothing selected.
   selectedId: string | null;
+  // Full selection set, ordered. Always contains selectedId when non-null.
+  // Used by bulk actions (delete-many, hide-many) and visual highlighting.
+  selectedIds: string[];
   viewMode: ViewMode;
   cameras: CameraConfig[];
   activeCameraIndex: number;
@@ -103,7 +107,10 @@ export interface SceneStore {
   updateFill: (id: string, fillId: string, updates: Partial<FillConfig>) => void;
   removeFill: (id: string, fillId: string) => void;
   toggleNodeVisibility: (id: string) => void;
-  selectNode: (id: string | null) => void;
+  // additive=true toggles id in/out of selection; default replaces.
+  selectNode: (id: string | null, additive?: boolean) => void;
+  // Reorder a node: place it at `targetIndex` in the nodes array.
+  moveNode: (id: string, targetIndex: number) => void;
   clearScene: () => void;
   loadNodes: (nodes: Omit<SceneNode, 'id'>[]) => void;
   appendNodes: (nodes: Omit<SceneNode, 'id'>[]) => void;
@@ -129,6 +136,7 @@ export const useSceneStore = create<SceneStore>()(
   // --- Initial state (restored from localStorage if available) ---
   nodes: restored?.nodes ?? [],
   selectedId: null,
+  selectedIds: [],
   viewMode: (restored?.viewMode as ViewMode) ?? 'single',
   cameras: restored?.cameras ?? CAMERA_PRESETS.map((c) => ({ ...c })),
   activeCameraIndex: restored?.activeCameraIndex ?? 0,
@@ -150,6 +158,7 @@ export const useSceneStore = create<SceneStore>()(
     set((s) => ({
       nodes: [...s.nodes, node],
       selectedId: id,
+      selectedIds: [id],
       renderVersion: s.renderVersion + 1,
     }));
     return id;
@@ -158,11 +167,15 @@ export const useSceneStore = create<SceneStore>()(
   removeNode: (id) => {
     clearMeshCache(id);
     clearGeneratorCache(id);
-    set((s) => ({
-      nodes: s.nodes.filter((n) => n.id !== id),
-      selectedId: s.selectedId === id ? null : s.selectedId,
-      renderVersion: s.renderVersion + 1,
-    }));
+    set((s) => {
+      const remainingIds = s.selectedIds.filter((sid) => sid !== id);
+      return {
+        nodes: s.nodes.filter((n) => n.id !== id),
+        selectedId: s.selectedId === id ? (remainingIds[0] ?? null) : s.selectedId,
+        selectedIds: remainingIds,
+        renderVersion: s.renderVersion + 1,
+      };
+    });
   },
 
   updateNode: (id, updates) => {
@@ -254,7 +267,35 @@ export const useSceneStore = create<SceneStore>()(
     }));
   },
 
-  selectNode: (id) => set({ selectedId: id }),
+  selectNode: (id, additive = false) => set((s) => {
+    if (id === null) return { selectedId: null, selectedIds: [] };
+    if (!additive) return { selectedId: id, selectedIds: [id] };
+    // Toggle id in/out of selection
+    const already = s.selectedIds.includes(id);
+    if (already) {
+      const next = s.selectedIds.filter((sid) => sid !== id);
+      return {
+        selectedId: s.selectedId === id ? (next[0] ?? null) : s.selectedId,
+        selectedIds: next,
+      };
+    }
+    return {
+      selectedId: id,
+      selectedIds: [...s.selectedIds, id],
+    };
+  }),
+
+  moveNode: (id, targetIndex) => {
+    set((s) => {
+      const fromIndex = s.nodes.findIndex((n) => n.id === id);
+      if (fromIndex < 0 || fromIndex === targetIndex) return s;
+      const next = [...s.nodes];
+      const [moved] = next.splice(fromIndex, 1);
+      const clamped = Math.max(0, Math.min(targetIndex, next.length));
+      next.splice(clamped, 0, moved);
+      return { nodes: next, renderVersion: s.renderVersion + 1 };
+    });
+  },
 
   clearScene: () => {
     clearMeshCache();
@@ -262,6 +303,7 @@ export const useSceneStore = create<SceneStore>()(
     set((s) => ({
       nodes: [],
       selectedId: null,
+      selectedIds: [],
       renderVersion: s.renderVersion + 1,
     }));
   },
@@ -270,18 +312,22 @@ export const useSceneStore = create<SceneStore>()(
     clearMeshCache();
     clearGeneratorCache();
     const nodes = nodeData.map((n) => ({ ...n, id: genId() }));
+    const first = nodes.length > 0 ? nodes[0].id : null;
     set((s) => ({
       nodes,
-      selectedId: nodes.length > 0 ? nodes[0].id : null,
+      selectedId: first,
+      selectedIds: first ? [first] : [],
       renderVersion: s.renderVersion + 1,
     }));
   },
 
   appendNodes: (nodeData) => {
     const newNodes = nodeData.map((n) => ({ ...n, id: genId() }));
+    const firstNew = newNodes.length > 0 ? newNodes[0].id : null;
     set((s) => ({
       nodes: [...s.nodes, ...newNodes],
-      selectedId: newNodes.length > 0 ? newNodes[0].id : s.selectedId,
+      selectedId: firstNew ?? s.selectedId,
+      selectedIds: firstNew ? [firstNew] : s.selectedIds,
       renderVersion: s.renderVersion + 1,
     }));
   },
@@ -309,10 +355,10 @@ export const useSceneStore = create<SceneStore>()(
 
   bumpRenderVersion: () => set((s) => ({ renderVersion: s.renderVersion + 1 })),
 }), {
-  // Don't snapshot selectedId/renderVersion in history — they're ephemeral UI state.
+  // Don't snapshot selection/renderVersion in history — they're ephemeral UI state.
   partialize: (state) => {
-    const { selectedId, renderVersion, ...rest } = state;
-    void selectedId; void renderVersion;
+    const { selectedId, selectedIds, renderVersion, ...rest } = state;
+    void selectedId; void selectedIds; void renderVersion;
     return rest;
   },
   limit: 50,

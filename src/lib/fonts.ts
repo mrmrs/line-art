@@ -16,11 +16,12 @@ export interface FontEntry {
   loading?: Promise<opentype.Font>;
 }
 
-// Bundled font slots — add files to /public/fonts/ and register them here.
-// Empty by default; the upload flow works without bundled fonts.
+// Bundled fonts — files live in /public/fonts/. Add more by dropping a TTF
+// and adding a line below.
 const BUNDLED: Omit<FontEntry, 'font' | 'loading'>[] = [
-  // Example (add real files to /public/fonts/ to enable):
-  // { id: 'inter', name: 'Inter', source: 'bundled', url: '/fonts/Inter-Regular.ttf' },
+  { id: 'inter',            name: 'Inter',            source: 'bundled', url: '/fonts/Inter.ttf' },
+  { id: 'geist',            name: 'Geist',            source: 'bundled', url: '/fonts/Geist.ttf' },
+  { id: 'instrument-serif', name: 'Instrument Serif', source: 'bundled', url: '/fonts/InstrumentSerif.ttf' },
 ];
 
 const registry = new Map<string, FontEntry>();

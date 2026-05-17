@@ -384,6 +384,23 @@ input[type="number"] {
   background: var(--color-accent-dim);
 }
 
+/* Among multi-selected items, the one Properties is editing is the "primary".
+   Mark it with a left edge so the user knows which one Properties shows. */
+.scene-tree-item.primary {
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.scene-tree-item.drag-over {
+  box-shadow: 0 -2px 0 var(--color-accent) inset, 0 2px 0 var(--color-accent);
+}
+
+.scene-tree-item[draggable="true"] {
+  cursor: grab;
+}
+.scene-tree-item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
 .scene-tree-icon {
   font-size: 12px;
   width: 16px;

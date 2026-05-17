@@ -5,16 +5,24 @@ import { renderScene, renderScenePerPen, multiPenSvg } from '../lib/render';
 import { optimizePathOrder } from '../lib/plotter-optimize';
 import type { ViewMode } from '../lib/types';
 
-// Paper sizes in pixels at 96 DPI. Width/height pairs; we render at these
-// pixel dimensions and the resulting SVG can be printed/plotted at scale.
-const PAPER_SIZES: Record<string, { w: number; h: number; label: string }> = {
-  square:  { w: 1024, h: 1024, label: 'Square 1024' },
-  A4:      { w: 794,  h: 1123, label: 'A4 portrait' },
-  A4L:     { w: 1123, h: 794,  label: 'A4 landscape' },
-  A3:      { w: 1123, h: 1587, label: 'A3 portrait' },
-  A3L:     { w: 1587, h: 1123, label: 'A3 landscape' },
-  letter:  { w: 816,  h: 1056, label: 'US Letter' },
-  '12x18': { w: 1152, h: 1728, label: '12x18 in' },
+// Paper sizes — pixel dimensions at 96 DPI for the render viewport AND
+// physical dimensions for the exported <svg width/height>. Plotters honor the
+// physical units; viewBox stays in pixel-space so the render coordinates map
+// 1:1 to plot coordinates.
+const PAPER_SIZES: Record<string, {
+  w: number; h: number;       // pixels (render size)
+  physW: string; physH: string; // physical size attributes
+  label: string;
+}> = {
+  square: { w: 1024, h: 1024, physW: '250mm', physH: '250mm', label: 'Square 250mm' },
+  A4:     { w: 794,  h: 1123, physW: '210mm', physH: '297mm', label: 'A4 (210×297mm)' },
+  A4L:    { w: 1123, h: 794,  physW: '297mm', physH: '210mm', label: 'A4 landscape' },
+  A3:     { w: 1123, h: 1587, physW: '297mm', physH: '420mm', label: 'A3 (297×420mm)' },
+  A3L:    { w: 1587, h: 1123, physW: '420mm', physH: '297mm', label: 'A3 landscape' },
+  A2:     { w: 1587, h: 2245, physW: '420mm', physH: '594mm', label: 'A2 (420×594mm)' },
+  letter: { w: 816,  h: 1056, physW: '8.5in', physH: '11in',  label: 'US Letter (8.5×11in)' },
+  tabloid:{ w: 1056, h: 1632, physW: '11in',  physH: '17in',  label: 'Tabloid (11×17in)' },
+  '12x18':{ w: 1152, h: 1728, physW: '12in',  physH: '18in',  label: '12×18 in' },
 };
 
 // Default cycling palette for pens 2+ (pen 1 uses the user's stroke color).
@@ -60,15 +68,16 @@ export function Toolbar() {
   const buildExportSVG = (): string => {
     const camera = cameras[activeCameraIndex];
     const highQuality = { ...renderSettings, step: 0.01 };
-    const { w, h } = PAPER_SIZES[paperSize];
+    const { w, h, physW, physH } = PAPER_SIZES[paperSize];
+    const physical = { width: physW, height: physH };
     if (hasMultiplePens) {
       const { penGroups } = renderScenePerPen(nodes, camera, w, h, highQuality);
       const optimized = optimize
         ? penGroups.map((g) => ({ ...g, paths: optimizePathOrder(g.paths) }))
         : penGroups;
-      return multiPenSvg(optimized, w, h, highQuality, PEN_PALETTE);
+      return multiPenSvg(optimized, w, h, highQuality, PEN_PALETTE, physical);
     }
-    return renderScene(nodes, camera, w, h, highQuality).svg;
+    return renderScene(nodes, camera, w, h, highQuality, { physical }).svg;
   };
 
   const handleExportSVG = () => {
