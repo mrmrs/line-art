@@ -1,7 +1,32 @@
+import { useState } from 'react';
 import { useSceneStore } from '../lib/store';
 import { downloadSVG, copySVGToClipboard } from '../lib/export-svg';
-import { renderScene } from '../lib/render';
+import { renderScene, renderScenePerPen, multiPenSvg } from '../lib/render';
+import { optimizePathOrder } from '../lib/plotter-optimize';
 import type { ViewMode } from '../lib/types';
+
+// Paper sizes in pixels at 96 DPI. Width/height pairs; we render at these
+// pixel dimensions and the resulting SVG can be printed/plotted at scale.
+const PAPER_SIZES: Record<string, { w: number; h: number; label: string }> = {
+  square:  { w: 1024, h: 1024, label: 'Square 1024' },
+  A4:      { w: 794,  h: 1123, label: 'A4 portrait' },
+  A4L:     { w: 1123, h: 794,  label: 'A4 landscape' },
+  A3:      { w: 1123, h: 1587, label: 'A3 portrait' },
+  A3L:     { w: 1587, h: 1123, label: 'A3 landscape' },
+  letter:  { w: 816,  h: 1056, label: 'US Letter' },
+  '12x18': { w: 1152, h: 1728, label: '12x18 in' },
+};
+
+// Default cycling palette for pens 2+ (pen 1 uses the user's stroke color).
+const PEN_PALETTE: Record<number, string> = {
+  2: '#d8463a',  // red
+  3: '#3aa1d8',  // blue
+  4: '#3ad864',  // green
+  5: '#d8b53a',  // amber
+  6: '#a93ad8',  // violet
+  7: '#3ad8c3',  // cyan
+  8: '#d83a8b',  // pink
+};
 
 // =============================================================================
 // Top Toolbar: view mode, export, settings
@@ -23,18 +48,35 @@ export function Toolbar() {
   const renderSettings = useSceneStore((s) => s.renderSettings);
   const updateRenderSettings = useSceneStore((s) => s.updateRenderSettings);
 
-  const handleExportSVG = () => {
+  const [paperSize, setPaperSize] = useState<keyof typeof PAPER_SIZES>('square');
+  const [optimize, setOptimize] = useState(true);
+
+  const hasMultiplePens = (() => {
+    const pens = new Set<number>();
+    for (const n of nodes) for (const f of n.fills ?? []) if (f.enabled) pens.add(f.pen);
+    return pens.size > 1;
+  })();
+
+  const buildExportSVG = (): string => {
     const camera = cameras[activeCameraIndex];
     const highQuality = { ...renderSettings, step: 0.01 };
-    const result = renderScene(nodes, camera, 1024, 1024, highQuality);
-    downloadSVG(result.svg, 'plotter-art.svg');
+    const { w, h } = PAPER_SIZES[paperSize];
+    if (hasMultiplePens) {
+      const { penGroups } = renderScenePerPen(nodes, camera, w, h, highQuality);
+      const optimized = optimize
+        ? penGroups.map((g) => ({ ...g, paths: optimizePathOrder(g.paths) }))
+        : penGroups;
+      return multiPenSvg(optimized, w, h, highQuality, PEN_PALETTE);
+    }
+    return renderScene(nodes, camera, w, h, highQuality).svg;
+  };
+
+  const handleExportSVG = () => {
+    downloadSVG(buildExportSVG(), 'plotter-art.svg');
   };
 
   const handleCopySVG = async () => {
-    const camera = cameras[activeCameraIndex];
-    const highQuality = { ...renderSettings, step: 0.01 };
-    const result = renderScene(nodes, camera, 1024, 1024, highQuality);
-    await copySVGToClipboard(result.svg);
+    await copySVGToClipboard(buildExportSVG());
   };
 
   return (
@@ -118,9 +160,49 @@ export function Toolbar() {
             <option value={0.005}>Ultra (0.005)</option>
           </select>
         </div>
+
+        <div className="toolbar-divider" />
+
+        <div className="toolbar-group">
+          <label className="toolbar-label">Paper</label>
+          <select
+            className="input input-sm"
+            value={paperSize}
+            onChange={(e) => setPaperSize(e.target.value as keyof typeof PAPER_SIZES)}
+            title="Export size"
+          >
+            {Object.entries(PAPER_SIZES).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </select>
+          <label className="toolbar-label" style={{ marginLeft: 8 }}>
+            <input
+              type="checkbox"
+              checked={optimize}
+              onChange={(e) => setOptimize(e.target.checked)}
+              title="Reorder paths for shorter pen travel"
+              style={{ marginRight: 4 }}
+            />
+            optimize
+          </label>
+        </div>
       </div>
 
       <div className="toolbar-right">
+        <button
+          className="btn btn-sm"
+          onClick={() => useSceneStore.temporal.getState().undo()}
+          title="Undo (Cmd+Z)"
+        >
+          ↶
+        </button>
+        <button
+          className="btn btn-sm"
+          onClick={() => useSceneStore.temporal.getState().redo()}
+          title="Redo (Cmd+Shift+Z)"
+        >
+          ↷
+        </button>
         <button className="btn btn-sm" onClick={handleCopySVG} title="Copy SVG to clipboard">
           Copy SVG
         </button>

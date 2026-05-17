@@ -84,6 +84,12 @@ export function useWorkerRender(
     if (nodes.length === 0) {
       latestIdRef.current += 1;
       if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
+      // Clear stale image when scene becomes empty. Defer to a microtask so
+      // setState is not called synchronously inside the effect body.
+      renderingTimerRef.current = setTimeout(() => {
+        setResult({ svg: '', renderTimeMs: 0, pathCount: 0 });
+        setRendering(false);
+      }, 0);
       return;
     }
 

@@ -81,7 +81,6 @@ export const PRESETS: ScenePreset[] = [
         name: 'Fibonacci Cloud',
         type: 'point-cloud',
         params: {
-          points: [],
           pointSize: 0.03,
           pattern: 'fibonacci-sphere' as const,
           count: 300,

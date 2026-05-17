@@ -93,7 +93,6 @@ export function generatePointCloud(
   count: number,
   radius: number,
   gridSpacing: number,
-  customPoints?: Vec3[],
 ): Vec3[] {
   const rand = seededRandom(42);
 
@@ -157,9 +156,6 @@ export function generatePointCloud(
       }
       return pts;
     }
-
-    case 'custom':
-      return customPoints ?? [];
 
     default:
       return [];

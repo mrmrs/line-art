@@ -1,4 +1,5 @@
 import * as ln from '@lnjs/core';
+import { createNoise3D } from 'simplex-noise';
 import type { CubeGridParams } from './types';
 
 // =============================================================================
@@ -9,45 +10,45 @@ import type { CubeGridParams } from './types';
 // noise, radial SDF, sine waves, voxel shapes, expressions, etc.
 // =============================================================================
 
-// --- Deterministic hash-based 3D value noise ---
+// --- Deterministic 3D noise: simplex-noise per-seed cache ---
+//
+// simplex-noise is faster and has no axis-aligned artifacts vs the previous
+// value-noise. Each seed gets its own simplex instance, cached.
 
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const noiseCache = new Map<number, (x: number, y: number, z: number) => number>();
+function getNoise(seed: number) {
+  let fn = noiseCache.get(seed);
+  if (fn) return fn;
+  fn = createNoise3D(mulberry32(seed));
+  noiseCache.set(seed, fn);
+  return fn;
+}
+
+// Returns value in [0, 1] for compatibility with callers expecting unsigned noise.
+// simplex-noise returns [-1, 1] so we remap.
+export function noise3d(x: number, y: number, z: number, seed: number = 0): number {
+  const n = getNoise(seed);
+  return (n(x, y, z) + 1) * 0.5;
+}
+
+// Deterministic integer hash → [0, 1). Kept for callers that need cheap,
+// uncorrelated per-cell random values (no smoothing).
 function hashInt(x: number, y: number, z: number, seed: number): number {
   let h = (x * 374761393 + y * 668265263 + z * 1274126177 + seed * 904991) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   h = h ^ (h >>> 16);
-  return (h & 0x7fffffff) / 0x7fffffff; // 0..1
-}
-
-function smoothstep(t: number): number {
-  return t * t * (3 - 2 * t);
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-export function noise3d(x: number, y: number, z: number, seed: number = 0): number {
-  const ix = Math.floor(x);
-  const iy = Math.floor(y);
-  const iz = Math.floor(z);
-  const fx = smoothstep(x - ix);
-  const fy = smoothstep(y - iy);
-  const fz = smoothstep(z - iz);
-
-  const n000 = hashInt(ix, iy, iz, seed);
-  const n100 = hashInt(ix + 1, iy, iz, seed);
-  const n010 = hashInt(ix, iy + 1, iz, seed);
-  const n110 = hashInt(ix + 1, iy + 1, iz, seed);
-  const n001 = hashInt(ix, iy, iz + 1, seed);
-  const n101 = hashInt(ix + 1, iy, iz + 1, seed);
-  const n011 = hashInt(ix, iy + 1, iz + 1, seed);
-  const n111 = hashInt(ix + 1, iy + 1, iz + 1, seed);
-
-  return lerp(
-    lerp(lerp(n000, n100, fx), lerp(n010, n110, fx), fy),
-    lerp(lerp(n001, n101, fx), lerp(n011, n111, fx), fy),
-    fz,
-  );
+  return (h & 0x7fffffff) / 0x7fffffff;
 }
 
 // Multi-octave fractal noise

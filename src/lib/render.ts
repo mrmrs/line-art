@@ -23,6 +23,9 @@ import { PointCloud, generatePointCloud } from './point-cloud';
 import { parseSTL } from './stl-loader';
 import { generateCubeGrid, noise3d } from './cube-grid';
 import { generateAutomataGrid } from './automata-grid';
+import { extrudeFromParams } from './svg-extrude';
+import { buildFillHost, generateFillPaths, FillShape } from './fills';
+import type { SvgExtrudeParams, TextExtrudeParams } from './types';
 
 // =============================================================================
 // Render Engine: SceneNode[] -> ln.js Scene -> SVG
@@ -34,6 +37,100 @@ const meshTriangleCache = new Map<string, ln.Triangle[]>();
 export function clearMeshCache(nodeId?: string) {
   if (nodeId) meshTriangleCache.delete(nodeId);
   else meshTriangleCache.clear();
+}
+
+// Cache generator output (cube-grid, plane-grid, automata-grid, line-grid local paths)
+// keyed on nodeId, with paramsHash to detect param changes.
+interface GeneratorCacheEntry {
+  paramsHash: string;
+  cubes?: ln.Cube[];      // for cube-grid, plane-grid, automata-grid
+  paths?: ln.Paths;        // for line-grid (local-space)
+}
+const generatorCache = new Map<string, GeneratorCacheEntry>();
+
+// Cache fill output per (nodeId, fillId). Invalidated when host mesh or fill
+// params change.
+interface FillCacheEntry { hostHash: string; fillHash: string; paths: ln.Paths; }
+const fillCache = new Map<string, FillCacheEntry>();
+
+export function clearGeneratorCache(nodeId?: string) {
+  if (nodeId) generatorCache.delete(nodeId);
+  else generatorCache.clear();
+}
+
+// Extract the host triangles for a mesh-like node (used for fills + slicing).
+// Returns null if the node has no inherent mesh form.
+function getHostTriangles(node: SceneNode): ln.Triangle[] | null {
+  if (node.type === 'mesh') {
+    const p = node.params as MeshParams;
+    let triangles = meshTriangleCache.get(node.id);
+    if (!triangles) {
+      try {
+        if (p.format === 'obj') {
+          triangles = ln.loadOBJ(p.data).triangles;
+        } else {
+          const binary = atob(p.data);
+          const buffer = new ArrayBuffer(binary.length);
+          const view = new Uint8Array(buffer);
+          for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+          triangles = parseSTL(buffer);
+        }
+        if (triangles && triangles.length > 0) meshTriangleCache.set(node.id, triangles);
+      } catch { return null; }
+    }
+    return triangles ?? null;
+  }
+  if (node.type === 'svg-extrude' || node.type === 'text-extrude') {
+    const p = node.params as SvgExtrudeParams | TextExtrudeParams;
+    if (!p.polylines || p.polylines.length === 0) return null;
+    const cacheKey = `${node.id}|extrude|${paramsHash({
+      polylines: p.polylines,
+      extrudeDepth: p.extrudeDepth,
+      fitToSize: p.fitToSize,
+      centerOnOrigin: p.centerOnOrigin,
+    })}`;
+    let tris = meshTriangleCache.get(cacheKey);
+    if (!tris) {
+      tris = extrudeFromParams(p);
+      if (!tris || tris.length === 0) return null;
+      for (const k of meshTriangleCache.keys()) {
+        if (k.startsWith(`${node.id}|`) && k !== cacheKey) meshTriangleCache.delete(k);
+      }
+      meshTriangleCache.set(cacheKey, tris);
+    }
+    return tris;
+  }
+  return null;
+}
+
+// Apply node transform to triangles (returns new array; never mutates input)
+function transformTriangles(tris: ln.Triangle[], t: TransformParams): ln.Triangle[] {
+  if (!hasNonIdentityTransform(t)) {
+    // Still need to deep-copy so downstream BVH/fill code doesn't mutate cache
+    return tris.map((tr) => new ln.Triangle(
+      new ln.Vector(tr.v1.x, tr.v1.y, tr.v1.z),
+      new ln.Vector(tr.v2.x, tr.v2.y, tr.v2.z),
+      new ln.Vector(tr.v3.x, tr.v3.y, tr.v3.z),
+    ));
+  }
+  const m = buildTransformMatrix(t);
+  return tris.map((tr) => new ln.Triangle(
+    m.mulPosition(new ln.Vector(tr.v1.x, tr.v1.y, tr.v1.z)),
+    m.mulPosition(new ln.Vector(tr.v2.x, tr.v2.y, tr.v2.z)),
+    m.mulPosition(new ln.Vector(tr.v3.x, tr.v3.y, tr.v3.z)),
+  ));
+}
+
+// Stable params hash — JSON stringify with sorted keys for deterministic output
+function paramsHash(params: unknown): string {
+  return JSON.stringify(params, (_k, v) => {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const sorted: Record<string, unknown> = {};
+      for (const k of Object.keys(v).sort()) sorted[k] = (v as Record<string, unknown>)[k];
+      return sorted;
+    }
+    return v;
+  });
 }
 
 // --- Build transform matrix from params ---
@@ -164,9 +261,7 @@ function createShape(
 
     case 'point-cloud': {
       const p = node.params as PointCloudParams;
-      const pts = p.pattern === 'custom'
-        ? p.points
-        : generatePointCloud(p.pattern, p.count, p.radius, p.gridSpacing);
+      const pts = generatePointCloud(p.pattern, p.count, p.radius, p.gridSpacing);
       const vectors = pts.map((v: Vec3) => new ln.Vector(v[0], v[1], v[2]));
       shape = new PointCloud(vectors, p.pointSize) as unknown as ln.ShapeT;
       break;
@@ -188,6 +283,40 @@ function createShape(
         union: ln.CSGOperation.Union,
       };
       shape = new ln.BooleanShape(opMap[p.operation], shapeA, shapeB);
+      break;
+    }
+
+    case 'svg-extrude':
+    case 'text-extrude': {
+      const p = node.params as SvgExtrudeParams | TextExtrudeParams;
+      if (!p.polylines || p.polylines.length === 0) return null;
+
+      const cacheKey = `${node.id}|extrude|${paramsHash({
+        polylines: p.polylines,
+        extrudeDepth: p.extrudeDepth,
+        fitToSize: p.fitToSize,
+        centerOnOrigin: p.centerOnOrigin,
+      })}`;
+      let triangles = meshTriangleCache.get(cacheKey);
+      if (!triangles) {
+        triangles = extrudeFromParams(p);
+        if (!triangles || triangles.length === 0) return null;
+        // Drop other cache entries for this node (old extrude params)
+        for (const k of meshTriangleCache.keys()) {
+          if (k.startsWith(`${node.id}|`) && k !== cacheKey) meshTriangleCache.delete(k);
+        }
+        meshTriangleCache.set(cacheKey, triangles);
+      }
+      // Deep-copy triangles so transforms don't mutate cache
+      const copied = triangles.map(
+        (t) =>
+          new ln.Triangle(
+            new ln.Vector(t.v1.x, t.v1.y, t.v1.z),
+            new ln.Vector(t.v2.x, t.v2.y, t.v2.z),
+            new ln.Vector(t.v3.x, t.v3.y, t.v3.z),
+          ),
+      );
+      shape = new ln.Mesh(copied);
       break;
     }
 
@@ -221,13 +350,26 @@ function createShape(
 
 // --- Create multiple shapes for node types that produce many shapes ---
 
+function getCachedCubes(
+  nodeId: string,
+  params: unknown,
+  generator: () => ln.Cube[],
+): ln.Cube[] {
+  const hash = paramsHash(params);
+  const entry = generatorCache.get(nodeId);
+  if (entry && entry.paramsHash === hash && entry.cubes) return entry.cubes;
+  const cubes = generator();
+  generatorCache.set(nodeId, { paramsHash: hash, cubes });
+  return cubes;
+}
+
 function createShapes(
   node: SceneNode,
   allNodes: SceneNode[],
 ): ln.ShapeT[] {
   if (node.type === 'cube-grid') {
     const p = node.params as CubeGridParams;
-    const cubes = generateCubeGrid(p);
+    const cubes = getCachedCubes(node.id, p, () => generateCubeGrid(p));
     const hasTransform = hasNonIdentityTransform(node.transform);
     const matrix = hasTransform ? buildTransformMatrix(node.transform) : null;
 
@@ -239,7 +381,7 @@ function createShapes(
 
   if (node.type === 'plane-grid') {
     const p = node.params as PlaneGridParams;
-    const cubes = generatePlaneGrid(p);
+    const cubes = getCachedCubes(node.id, p, () => generatePlaneGrid(p));
     const hasTransform = hasNonIdentityTransform(node.transform);
     const matrix = hasTransform ? buildTransformMatrix(node.transform) : null;
     return cubes.map((cube) => matrix ? new ln.TransformedShape(cube, matrix) : cube);
@@ -247,7 +389,7 @@ function createShapes(
 
   if (node.type === 'automata-grid') {
     const p = node.params as AutomataGridParams;
-    const cubes = generateAutomataGrid(p);
+    const cubes = getCachedCubes(node.id, p, () => generateAutomataGrid(p));
     const hasTransform = hasNonIdentityTransform(node.transform);
     const matrix = hasTransform ? buildTransformMatrix(node.transform) : null;
 
@@ -301,7 +443,7 @@ function createSlicedPaths(
     const plane = new ln.Plane(point, normal);
 
     // intersectMesh only works on Mesh. Build a temp scene to get paths.
-    if (node.type === 'mesh') {
+    if (node.type === 'mesh' || node.type === 'svg-extrude' || node.type === 'text-extrude') {
       const meshShape = createShape(
         { ...node, slicing: { ...node.slicing, enabled: false } },
         allNodes,
@@ -407,8 +549,9 @@ function generatePlaneGrid(p: PlaneGridParams): ln.Cube[] {
 
 // --- Generate line grid paths in world space ---
 
-function generateLineGridPaths(node: SceneNode): ln.Paths {
-  const p = node.params as LineGridParams;
+// Local-space line-grid paths (no transform applied here so they can be cached
+// across camera moves; transform is applied at use-site in renderScene).
+function generateLineGridLocalPaths(p: LineGridParams): ln.Paths {
   const paths: ln.Paths = [];
 
   const cx = p.countX;
@@ -416,9 +559,6 @@ function generateLineGridPaths(node: SceneNode): ln.Paths {
   const sp = p.spacing;
   const totalX = (cx - 1) * sp;
   const totalY = (cy - 1) * sp;
-
-  const hasTransform = hasNonIdentityTransform(node.transform);
-  const matrix = hasTransform ? buildTransformMatrix(node.transform) : null;
 
   // Simple hash for random methods
   const hashRand = (a: number, b: number, seed: number): number => {
@@ -519,17 +659,15 @@ function generateLineGridPaths(node: SceneNode): ln.Paths {
 
         // Emit segment 1
         if (seg1Len > 0.001) {
-          let a = makeVec(seg1Start, gx, gy);
-          let b = makeVec(seg1End, gx, gy);
-          if (matrix) { a = matrix.mulPosition(a); b = matrix.mulPosition(b); }
+          const a = makeVec(seg1Start, gx, gy);
+          const b = makeVec(seg1End, gx, gy);
           paths.push([a, b]);
         }
 
         // Emit segment 2
         if (seg2Len > 0.001) {
-          let a = makeVec(seg2Start, gx, gy);
-          let b = makeVec(seg2End, gx, gy);
-          if (matrix) { a = matrix.mulPosition(a); b = matrix.mulPosition(b); }
+          const a = makeVec(seg2Start, gx, gy);
+          const b = makeVec(seg2End, gx, gy);
           paths.push([a, b]);
         }
       } else {
@@ -545,9 +683,8 @@ function generateLineGridPaths(node: SceneNode): ln.Paths {
         }
 
         const half = lineLen / 2;
-        let a = makeVec(-half, gx, gy);
-        let b = makeVec(half, gx, gy);
-        if (matrix) { a = matrix.mulPosition(a); b = matrix.mulPosition(b); }
+        const a = makeVec(-half, gx, gy);
+        const b = makeVec(half, gx, gy);
         paths.push([a, b]);
       }
     }
@@ -558,37 +695,88 @@ function generateLineGridPaths(node: SceneNode): ln.Paths {
 
 // --- Main render function ---
 
+// Internal render options for multi-pen passes.
+interface RenderOptions {
+  // Only include fills with this pen number (undefined = all fills)
+  penFilter?: number;
+  // Wrap main mesh shapes as occluder-only (their silhouettes are not drawn).
+  // Used for pen passes 2+ where the main shapes' lines belong to pen 1.
+  suppressMainPaths?: boolean;
+}
+
+// Wrap a shape so it occludes but contributes no paths of its own.
+class OccluderOnly {
+  inner: ln.ShapeT;
+  constructor(inner: ln.ShapeT) { this.inner = inner; }
+  compile(): void {
+    const c = (this.inner as { compile?: () => void }).compile;
+    if (typeof c === 'function') c.call(this.inner);
+  }
+  paths(): ln.Paths { return []; }
+  boundingBox(): ln.Box { return this.inner.boundingBox(); }
+  contains(v: ln.Vector, f: number): boolean { return this.inner.contains(v, f); }
+  intersect(r: ln.Ray): typeof ln.NoHit { return this.inner.intersect(r) as typeof ln.NoHit; }
+}
+
 export function renderScene(
   nodes: SceneNode[],
   camera: CameraConfig,
   width: number,
   height: number,
   settings: RenderSettings,
+  options: RenderOptions = {},
 ): RenderResult {
   const start = performance.now();
   const scene = new ln.Scene();
   const extraPaths: ln.Paths = [];
+  const suppress = options.suppressMainPaths === true;
+  const wrap = (sh: ln.ShapeT): ln.ShapeT => (suppress ? (new OccluderOnly(sh) as unknown as ln.ShapeT) : sh);
+
+  // Pre-compute boolean child IDs once (O(N) instead of O(N²) inside the loop)
+  const booleanChildIds = new Set<string>();
+  for (const n of nodes) {
+    if (n.type === 'boolean' && n.visible) {
+      const ids = (n.params as BooleanParams).childIds;
+      booleanChildIds.add(ids[0]);
+      booleanChildIds.add(ids[1]);
+    }
+  }
 
   for (const node of nodes) {
     if (!node.visible) continue;
+    if (booleanChildIds.has(node.id)) continue;
 
-    // Boolean child nodes are rendered via their parent boolean node
-    const isBooleanChild = nodes.some(
-      (n) =>
-        n.type === 'boolean' &&
-        n.visible &&
-        (n.params as BooleanParams).childIds.includes(node.id),
-    );
-    if (isBooleanChild) continue;
-
-    // Line grids generate direct paths (not scene shapes)
+    // Line grids generate direct paths (not scene shapes).
+    // These are "main" paths so they're suppressed in pen passes 2+.
     if (node.type === 'line-grid') {
-      const linePaths = generateLineGridPaths(node);
-      extraPaths.push(...linePaths);
+      if (suppress) continue;
+      const lp = node.params as LineGridParams;
+      const hash = paramsHash(lp);
+      let localPaths: ln.Paths;
+      const cached = generatorCache.get(node.id);
+      if (cached && cached.paramsHash === hash && cached.paths) {
+        localPaths = cached.paths;
+      } else {
+        localPaths = generateLineGridLocalPaths(lp);
+        generatorCache.set(node.id, { paramsHash: hash, paths: localPaths });
+      }
+      // Apply transform (cached separately so a transform-only change still skips regeneration)
+      const matrix = hasNonIdentityTransform(node.transform)
+        ? buildTransformMatrix(node.transform)
+        : null;
+      if (matrix) {
+        for (const path of localPaths) {
+          const transformed: ln.Vector[] = [];
+          for (const v of path) transformed.push(matrix.mulPosition(v));
+          extraPaths.push(transformed);
+        }
+      } else {
+        extraPaths.push(...localPaths);
+      }
       continue;
     }
 
-    if (node.slicing.enabled) {
+    if (node.slicing.enabled && !suppress) {
       const slicePaths = createSlicedPaths(node, nodes);
       extraPaths.push(...slicePaths);
       // Also add the shape for occlusion
@@ -596,7 +784,55 @@ export function renderScene(
 
     // Use createShapes for types that produce multiple shapes (cube-grid)
     const shapes = createShapes(node, nodes);
-    for (const sh of shapes) scene.add(sh);
+    for (const sh of shapes) scene.add(wrap(sh));
+
+    // Fills: generate, wrap in FillShape, add to scene so ln.js handles
+    // inter-mesh occlusion automatically.
+    if (node.fills && node.fills.length > 0) {
+      const hostTris = getHostTriangles(node);
+      if (hostTris && hostTris.length > 0) {
+        const worldTris = transformTriangles(hostTris, node.transform);
+        // Cache host hash (geometry only) — used to detect when fills need
+        // regenerating because the host mesh changed.
+        const hostHash = `${node.id}|host|${worldTris.length}|${paramsHash({
+          tris: worldTris.length,
+          t: node.transform,
+        })}`;
+        let host: ReturnType<typeof buildFillHost> | null = null;
+        for (const fill of node.fills) {
+          if (!fill.enabled) continue;
+          if (options.penFilter !== undefined && fill.pen !== options.penFilter) continue;
+          const fillHash = paramsHash(fill);
+          const cacheKey = `${node.id}|fill|${fill.id}`;
+          let cached = fillCache.get(cacheKey);
+          if (!cached || cached.hostHash !== hostHash || cached.fillHash !== fillHash) {
+            if (!host) host = buildFillHost(worldTris);
+            const paths = generateFillPaths(fill, host);
+            cached = { hostHash, fillHash, paths };
+            fillCache.set(cacheKey, cached);
+          }
+          if (cached.paths.length > 0) {
+            const aabb = host
+              ? host.aabb
+              : (() => {
+                  // Compute a bbox without building the BVH if we got a cache hit
+                  let minX = Infinity, minY = Infinity, minZ = Infinity;
+                  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+                  for (const t of worldTris) {
+                    minX = Math.min(minX, t.v1.x, t.v2.x, t.v3.x);
+                    minY = Math.min(minY, t.v1.y, t.v2.y, t.v3.y);
+                    minZ = Math.min(minZ, t.v1.z, t.v2.z, t.v3.z);
+                    maxX = Math.max(maxX, t.v1.x, t.v2.x, t.v3.x);
+                    maxY = Math.max(maxY, t.v1.y, t.v2.y, t.v3.y);
+                    maxZ = Math.max(maxZ, t.v1.z, t.v2.z, t.v3.z);
+                  }
+                  return { minX, minY, minZ, maxX, maxY, maxZ };
+                })();
+            scene.add(new FillShape(cached.paths, aabb) as unknown as ln.ShapeT);
+          }
+        }
+      }
+    }
   }
 
   // Apply zoom: >1 = closer (zoomed in), <1 = further (zoomed out)
@@ -667,6 +903,18 @@ export function renderScene(
   const svg = toStyledSVG(paths, width, height, settings);
   const elapsed = performance.now() - start;
 
+  // Prune cache entries for nodes that no longer exist (auto-cleanup; works
+  // even though clearMeshCache/clearGeneratorCache from the main thread are
+  // no-ops in the worker context where these caches actually live).
+  const liveIds = new Set(nodes.map((n) => n.id));
+  for (const k of meshTriangleCache.keys()) {
+    const nodeId = k.includes('|') ? k.slice(0, k.indexOf('|')) : k;
+    if (!liveIds.has(nodeId)) meshTriangleCache.delete(k);
+  }
+  for (const id of generatorCache.keys()) {
+    if (!liveIds.has(id)) generatorCache.delete(id);
+  }
+
   return {
     svg,
     renderTimeMs: elapsed,
@@ -691,17 +939,120 @@ function toStyledSVG(
     `style="background:${backgroundColor}">`,
   );
   lines.push(`<g transform="translate(0,${height}) scale(1,-1)">`);
+  lines.push(`<g id="pen-1" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" fill="none">`);
 
   for (const path of paths) {
     if (path.length < 2) continue;
     const points = path.map((v) => `${v.x.toFixed(2)},${v.y.toFixed(2)}`).join(' ');
-    lines.push(
-      `<polyline stroke="${strokeColor}" fill="none" ` +
-      `stroke-width="${strokeWidth}" stroke-linecap="round" ` +
-      `stroke-linejoin="round" points="${points}" />`,
-    );
+    lines.push(`<polyline points="${points}" />`);
   }
 
+  lines.push('</g></g></svg>');
+  return lines.join('\n');
+}
+
+// =============================================================================
+// Per-pen export — renders the scene once per distinct pen number, producing
+// an SVG with `<g id="pen-N">` groups suitable for multi-pen plotters.
+// =============================================================================
+
+export interface PenGroup { pen: number; paths: ln.Paths; }
+
+export function renderScenePerPen(
+  nodes: SceneNode[],
+  camera: CameraConfig,
+  width: number,
+  height: number,
+  settings: RenderSettings,
+): { penGroups: PenGroup[]; totalRenderTimeMs: number } {
+  const start = performance.now();
+  const pens = new Set<number>([1]);
+  for (const n of nodes) {
+    if (!n.visible) continue;
+    for (const f of n.fills ?? []) if (f.enabled) pens.add(f.pen);
+  }
+  const sortedPens = [...pens].sort((a, b) => a - b);
+  const lowestPen = sortedPens[0];
+  const penGroups: PenGroup[] = [];
+  for (const pen of sortedPens) {
+    const result = renderToProjectedPaths(nodes, camera, width, height, settings, {
+      penFilter: pen,
+      suppressMainPaths: pen !== lowestPen,
+    });
+    if (result.length > 0) penGroups.push({ pen, paths: result });
+  }
+  return { penGroups, totalRenderTimeMs: performance.now() - start };
+}
+
+// Render to projected (screen-space) paths only — same as renderScene but
+// without SVG serialization. Used internally by per-pen rendering.
+function renderToProjectedPaths(
+  nodes: SceneNode[],
+  camera: CameraConfig,
+  width: number,
+  height: number,
+  settings: RenderSettings,
+  options: RenderOptions,
+): ln.Paths {
+  // Parse-back trick is fragile; instead, do the same work as renderScene but
+  // returning paths instead of SVG. We use a hidden flag-via-symbol mechanism:
+  // simplest is just to call renderScene and re-parse, but better is to expose
+  // the path array directly. For now, call a parallel internal path:
+  const result = renderScene(nodes, camera, width, height, settings, options);
+  return paths2DFromSVG(result.svg);
+}
+
+function paths2DFromSVG(svg: string): ln.Paths {
+  // Extract polyline points from the styled SVG (we control its shape so this
+  // regex match is safe). We don't need to undo the Y-flip — the export wrapper
+  // will re-apply the same transform when composing the final multi-pen SVG.
+  const out: ln.Paths = [];
+  const re = /points="([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(svg))) {
+    const path: ln.Vector[] = [];
+    const pairs = m[1].trim().split(/\s+/);
+    for (const pair of pairs) {
+      const [xs, ys] = pair.split(',');
+      const x = parseFloat(xs);
+      const y = parseFloat(ys);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      path.push(new ln.Vector(x, y, 0));
+    }
+    if (path.length >= 2) out.push(path);
+  }
+  return out;
+}
+
+// Compose an SVG with multiple <g id="pen-N"> groups from per-pen path lists.
+// `penColors` maps pen number → stroke color; falls back to strokeColor.
+export function multiPenSvg(
+  penGroups: PenGroup[],
+  width: number,
+  height: number,
+  settings: RenderSettings,
+  penColors: Record<number, string> = {},
+): string {
+  const { strokeWidth, strokeColor, backgroundColor } = settings;
+  const lines: string[] = [];
+  lines.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `viewBox="0 0 ${width} ${height}" style="background:${backgroundColor}">`,
+  );
+  lines.push(`<g transform="translate(0,${height}) scale(1,-1)">`);
+  for (const grp of penGroups) {
+    const color = penColors[grp.pen] ?? strokeColor;
+    lines.push(
+      `<g id="pen-${grp.pen}" stroke="${color}" stroke-width="${strokeWidth}" ` +
+      `stroke-linecap="round" stroke-linejoin="round" fill="none">`,
+    );
+    for (const path of grp.paths) {
+      if (path.length < 2) continue;
+      const points = path.map((v) => `${v.x.toFixed(2)},${v.y.toFixed(2)}`).join(' ');
+      lines.push(`<polyline points="${points}" />`);
+    }
+    lines.push(`</g>`);
+  }
   lines.push('</g></svg>');
   return lines.join('\n');
 }

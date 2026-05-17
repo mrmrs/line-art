@@ -32,7 +32,9 @@ export type ShapeType =
   | 'cube-grid'
   | 'line-grid'
   | 'plane-grid'
-  | 'automata-grid';
+  | 'automata-grid'
+  | 'svg-extrude'
+  | 'text-extrude';
 
 export interface CubeParams {
   min: Vec3;
@@ -71,11 +73,9 @@ export type PointCloudPattern =
   | 'random-sphere'
   | 'random-cube'
   | 'fibonacci-sphere'
-  | 'grid'
-  | 'custom';
+  | 'grid';
 
 export interface PointCloudParams {
-  points: Vec3[];
   pointSize: number;
   pattern: PointCloudPattern;
   count: number;
@@ -345,6 +345,121 @@ export const DEFAULT_AUTOMATA_GRID_PARAMS: AutomataGridParams = {
   wrapEdges: true,
 };
 
+// =============================================================================
+// SVG Extrude — load an SVG and extrude it to 3D
+// =============================================================================
+
+export interface SvgExtrudeParams {
+  // Source flattened polylines in SVG coordinate space (Y-down). One ring
+  // per outer polygon or hole. Winding is determined at triangulation time.
+  polylines: number[][][];           // [polyline][point][x|y]
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  filename: string;
+
+  // Extrude parameters
+  extrudeDepth: number;              // total Z depth
+  bevelDepth: number;                // 0 = no bevel
+  bevelSegments: number;             // # of rings
+  fitToSize: number;                 // target size of largest dimension in world units
+  centerOnOrigin: boolean;
+}
+
+export const DEFAULT_SVG_EXTRUDE_PARAMS: SvgExtrudeParams = {
+  polylines: [],
+  bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+  filename: 'untitled.svg',
+  extrudeDepth: 0.6,
+  bevelDepth: 0,
+  bevelSegments: 2,
+  fitToSize: 2,
+  centerOnOrigin: true,
+};
+
+// =============================================================================
+// Text Extrude — 3D typography via opentype.js
+// =============================================================================
+
+export type TextAlign = 'left' | 'center' | 'right';
+
+export interface TextExtrudeParams {
+  text: string;
+  fontId: string;                    // key in font registry
+  fontSize: number;                  // in world units (rough — we fit to fitToSize)
+  letterSpacing: number;
+  lineHeight: number;
+  align: TextAlign;
+  extrudeDepth: number;
+  bevelDepth: number;
+  bevelSegments: number;
+  fitToSize: number;
+  centerOnOrigin: boolean;
+
+  // Cached flattened polylines (computed when text/font/size changes)
+  polylines?: number[][][];
+  bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+}
+
+export const DEFAULT_TEXT_EXTRUDE_PARAMS: TextExtrudeParams = {
+  text: 'HELLO',
+  fontId: 'inter',
+  fontSize: 200,
+  letterSpacing: 0,
+  lineHeight: 1.2,
+  align: 'center',
+  extrudeDepth: 0.6,
+  bevelDepth: 0,
+  bevelSegments: 2,
+  fitToSize: 3,
+  centerOnOrigin: true,
+};
+
+// =============================================================================
+// Fills — universal hatching / stippling decoration for mesh-like shapes
+// =============================================================================
+
+export type FillType = 'cross-hatch' | 'surface-hatch' | 'stipple' | 'contour';
+
+export interface FillConfig {
+  id: string;
+  type: FillType;
+  enabled: boolean;
+  // Common
+  spacing: number;                   // world units between lines / dots
+  pen: number;                       // 1..N — for multi-pen plotter output
+
+  // cross-hatch / contour
+  axis: 'x' | 'y' | 'z';
+  crossHatchAxes: ('x' | 'y' | 'z')[]; // for 3D cross-hatch; subset of {x,y,z}
+
+  // surface-hatch
+  angleDeg: number;                  // in-plane rotation per face
+
+  // stipple
+  density: number;                   // points per world unit (approx Poisson radius = 1/sqrt(density))
+  dotSize: number;
+  surfaceMode: boolean;              // true = sample surface; false = volume
+
+  // contour
+  count: number;                     // # of contour planes
+}
+
+export function makeDefaultFill(type: FillType, id: string): FillConfig {
+  return {
+    id,
+    type,
+    enabled: true,
+    spacing: 0.15,
+    pen: 1,
+    axis: 'z',
+    crossHatchAxes: type === 'cross-hatch' ? ['z'] : [],
+    angleDeg: 0,
+    density: 200,
+    dotSize: 0.02,
+    surfaceMode: type === 'stipple',
+    count: 10,
+  };
+}
+
 export type ShapeParams =
   | CubeParams
   | SphereParams
@@ -357,7 +472,9 @@ export type ShapeParams =
   | CubeGridParams
   | LineGridParams
   | PlaneGridParams
-  | AutomataGridParams;
+  | AutomataGridParams
+  | SvgExtrudeParams
+  | TextExtrudeParams;
 
 // --- Slicing ---
 
@@ -385,6 +502,7 @@ export interface SceneNode {
   transform: TransformParams;
   visible: boolean;
   slicing: SlicingConfig;
+  fills?: FillConfig[];
 }
 
 // --- Camera ---

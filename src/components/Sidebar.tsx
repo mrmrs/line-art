@@ -3,8 +3,9 @@ import { useSceneStore } from '../lib/store';
 import { PRESETS } from '../lib/presets';
 import { DEFAULT_TRANSFORM } from '../lib/types';
 import { useFileLoader } from '../hooks/useFileLoader';
-import { DEFAULT_CUBE_GRID_PARAMS, DEFAULT_LINE_GRID_PARAMS, DEFAULT_PLANE_GRID_PARAMS, DEFAULT_AUTOMATA_GRID_PARAMS } from '../lib/types';
-import type { ShapeType, ShapeParams, CubeParams, SphereParams, ConeParams, CylinderParams, FunctionParams, PointCloudParams, CubeGridParams, LineGridParams, PlaneGridParams, AutomataGridParams } from '../lib/types';
+import { DEFAULT_CUBE_GRID_PARAMS, DEFAULT_LINE_GRID_PARAMS, DEFAULT_PLANE_GRID_PARAMS, DEFAULT_AUTOMATA_GRID_PARAMS, DEFAULT_TEXT_EXTRUDE_PARAMS } from '../lib/types';
+import type { ShapeType, ShapeParams, CubeParams, SphereParams, ConeParams, CylinderParams, FunctionParams, PointCloudParams, CubeGridParams, LineGridParams, PlaneGridParams, AutomataGridParams, TextExtrudeParams } from '../lib/types';
+import { nodeComplexity } from '../lib/complexity';
 
 // =============================================================================
 // Left Sidebar: Scene tree + Shape library + Presets
@@ -23,6 +24,8 @@ const SHAPE_ICONS: Record<ShapeType, string> = {
   'line-grid': '\u2502',
   'plane-grid': '\u25AD',
   'automata-grid': '\u2637',
+  'svg-extrude': '\u25C6',
+  'text-extrude': 'T',
 };
 
 const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] = [
@@ -59,7 +62,6 @@ const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] =
     type: 'point-cloud',
     name: 'Point Cloud',
     params: {
-      points: [],
       pointSize: 0.03,
       pattern: 'fibonacci-sphere',
       count: 200,
@@ -86,6 +88,11 @@ const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] =
     type: 'automata-grid',
     name: 'Automata Grid',
     params: { ...DEFAULT_AUTOMATA_GRID_PARAMS } as AutomataGridParams,
+  },
+  {
+    type: 'text-extrude',
+    name: 'Text',
+    params: { ...DEFAULT_TEXT_EXTRUDE_PARAMS } as TextExtrudeParams,
   },
 ];
 
@@ -142,6 +149,10 @@ export function Sidebar() {
                 {SHAPE_ICONS[node.type] || '\u25A0'}
               </span>
               <span className="scene-tree-name">{node.name}</span>
+              {(() => {
+                const c = nodeComplexity(node);
+                return c ? <span className="scene-tree-badge">{c}</span> : null;
+              })()}
               <button
                 className="btn-icon delete-btn"
                 onClick={(e) => {
@@ -150,7 +161,7 @@ export function Sidebar() {
                 }}
                 title="Delete"
               >
-                \u00D7
+                {'\u00D7'}
               </button>
             </div>
           ))}
@@ -221,7 +232,7 @@ export function Sidebar() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".obj,.stl"
+          accept=".obj,.stl,.svg"
           multiple
           style={{ display: 'none' }}
           onChange={(e) => {
@@ -236,7 +247,7 @@ export function Sidebar() {
           onClick={() => fileInputRef.current?.click()}
         >
           <span className="drop-hint-icon">+</span>
-          <span>Import OBJ / STL file</span>
+          <span>Import OBJ / STL / SVG</span>
         </button>
         <div className="drop-hint-text-small">
           or drag &amp; drop files anywhere

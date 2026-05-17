@@ -77,7 +77,7 @@ export function DropZone() {
           <>
             <div className="drop-zone-icon">+</div>
             <div className="drop-zone-text">
-              Drop OBJ or STL files to add to scene
+              Drop OBJ, STL, or SVG files to add to scene
             </div>
           </>
         )}

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { temporal } from 'zundo';
 import type {
   SceneNode,
   CameraConfig,
@@ -9,10 +10,13 @@ import type {
   ShapeParams,
   TransformParams,
   SlicingConfig,
+  FillConfig,
+  FillType,
 } from './types';
+import { makeDefaultFill } from './types';
 import { DEFAULT_TRANSFORM, DEFAULT_SLICING, DEFAULT_RENDER_SETTINGS } from './types';
 import { CAMERA_PRESETS } from './cameras';
-import { clearMeshCache } from './render';
+import { clearMeshCache, clearGeneratorCache } from './render';
 
 // =============================================================================
 // Zustand Store: Reactive scene state with localStorage persistence
@@ -95,6 +99,9 @@ export interface SceneStore {
   updateNodeParams: (id: string, params: Partial<ShapeParams>) => void;
   updateNodeTransform: (id: string, transform: Partial<TransformParams>) => void;
   updateNodeSlicing: (id: string, slicing: Partial<SlicingConfig>) => void;
+  addFill: (id: string, type: FillType) => string;
+  updateFill: (id: string, fillId: string, updates: Partial<FillConfig>) => void;
+  removeFill: (id: string, fillId: string) => void;
   toggleNodeVisibility: (id: string) => void;
   selectNode: (id: string | null) => void;
   clearScene: () => void;
@@ -118,7 +125,7 @@ export interface SceneStore {
 const restored = loadFromStorage();
 
 export const useSceneStore = create<SceneStore>()(
-  subscribeWithSelector((set) => ({
+  subscribeWithSelector(temporal((set) => ({
   // --- Initial state (restored from localStorage if available) ---
   nodes: restored?.nodes ?? [],
   selectedId: null,
@@ -150,6 +157,7 @@ export const useSceneStore = create<SceneStore>()(
 
   removeNode: (id) => {
     clearMeshCache(id);
+    clearGeneratorCache(id);
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== id),
       selectedId: s.selectedId === id ? null : s.selectedId,
@@ -197,6 +205,46 @@ export const useSceneStore = create<SceneStore>()(
     }));
   },
 
+  addFill: (id, type) => {
+    const fillId = genId();
+    set((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === id
+          ? { ...n, fills: [...(n.fills ?? []), makeDefaultFill(type, fillId)] }
+          : n,
+      ),
+      renderVersion: s.renderVersion + 1,
+    }));
+    return fillId;
+  },
+
+  updateFill: (id, fillId, updates) => {
+    set((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              fills: (n.fills ?? []).map((f) =>
+                f.id === fillId ? { ...f, ...updates } : f,
+              ),
+            }
+          : n,
+      ),
+      renderVersion: s.renderVersion + 1,
+    }));
+  },
+
+  removeFill: (id, fillId) => {
+    set((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === id
+          ? { ...n, fills: (n.fills ?? []).filter((f) => f.id !== fillId) }
+          : n,
+      ),
+      renderVersion: s.renderVersion + 1,
+    }));
+  },
+
   toggleNodeVisibility: (id) => {
     set((s) => ({
       nodes: s.nodes.map((n) =>
@@ -210,6 +258,7 @@ export const useSceneStore = create<SceneStore>()(
 
   clearScene: () => {
     clearMeshCache();
+    clearGeneratorCache();
     set((s) => ({
       nodes: [],
       selectedId: null,
@@ -219,6 +268,7 @@ export const useSceneStore = create<SceneStore>()(
 
   loadNodes: (nodeData) => {
     clearMeshCache();
+    clearGeneratorCache();
     const nodes = nodeData.map((n) => ({ ...n, id: genId() }));
     set((s) => ({
       nodes,
@@ -258,6 +308,14 @@ export const useSceneStore = create<SceneStore>()(
   },
 
   bumpRenderVersion: () => set((s) => ({ renderVersion: s.renderVersion + 1 })),
+}), {
+  // Don't snapshot selectedId/renderVersion in history — they're ephemeral UI state.
+  partialize: (state) => {
+    const { selectedId, renderVersion, ...rest } = state;
+    void selectedId; void renderVersion;
+    return rest;
+  },
+  limit: 50,
 })));
 
 // --- Auto-save to localStorage on state changes (debounced) ---

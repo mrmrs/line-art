@@ -1,18 +1,24 @@
 import { useCallback } from 'react';
 import { useSceneStore } from '../lib/store';
-import { DEFAULT_TRANSFORM } from '../lib/types';
-import type { MeshParams } from '../lib/types';
+import { DEFAULT_TRANSFORM, DEFAULT_SVG_EXTRUDE_PARAMS } from '../lib/types';
+import type { MeshParams, SvgExtrudeParams } from '../lib/types';
+import { parseSvgString } from '../lib/svg-parse';
 
 // =============================================================================
-// Hook for loading OBJ/STL files into the scene
+// Hook for loading OBJ/STL/SVG files into the scene
 // =============================================================================
 
-async function readFileAsMesh(file: File): Promise<{ name: string; params: MeshParams } | null> {
+type LoadedNode =
+  | { kind: 'mesh'; name: string; params: MeshParams }
+  | { kind: 'svg-extrude'; name: string; params: SvgExtrudeParams };
+
+async function readFile(file: File): Promise<LoadedNode | null> {
   const ext = file.name.split('.').pop()?.toLowerCase();
 
   if (ext === 'obj') {
     const text = await file.text();
     return {
+      kind: 'mesh',
       name: file.name,
       params: { data: text, format: 'obj', fileName: file.name },
     };
@@ -26,8 +32,24 @@ async function readFileAsMesh(file: File): Promise<{ name: string; params: MeshP
       binary += String.fromCharCode(bytes[i]);
     }
     return {
+      kind: 'mesh',
       name: file.name,
       params: { data: btoa(binary), format: 'stl', fileName: file.name },
+    };
+  }
+
+  if (ext === 'svg') {
+    const text = await file.text();
+    const parsed = parseSvgString(text);
+    return {
+      kind: 'svg-extrude',
+      name: file.name,
+      params: {
+        ...DEFAULT_SVG_EXTRUDE_PARAMS,
+        polylines: parsed.polylines,
+        bounds: parsed.bounds,
+        filename: file.name,
+      },
     };
   }
 
@@ -40,9 +62,12 @@ export function useFileLoader() {
   return useCallback(
     async (files: FileList | File[]) => {
       for (const file of Array.from(files)) {
-        const result = await readFileAsMesh(file);
-        if (result) {
+        const result = await readFile(file);
+        if (!result) continue;
+        if (result.kind === 'mesh') {
           addNode('mesh', result.name, result.params, { ...DEFAULT_TRANSFORM });
+        } else if (result.kind === 'svg-extrude') {
+          addNode('svg-extrude', result.name, result.params, { ...DEFAULT_TRANSFORM });
         }
       }
     },
