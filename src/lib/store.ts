@@ -99,6 +99,7 @@ export interface SceneStore {
     transform?: TransformParams,
   ) => string;
   removeNode: (id: string) => void;
+  removeNodes: (ids: string[]) => void;
   updateNode: (id: string, updates: Partial<SceneNode>) => void;
   updateNodeParams: (id: string, params: Partial<ShapeParams>) => void;
   updateNodeTransform: (id: string, transform: Partial<TransformParams>) => void;
@@ -172,6 +173,25 @@ export const useSceneStore = create<SceneStore>()(
       return {
         nodes: s.nodes.filter((n) => n.id !== id),
         selectedId: s.selectedId === id ? (remainingIds[0] ?? null) : s.selectedId,
+        selectedIds: remainingIds,
+        renderVersion: s.renderVersion + 1,
+      };
+    });
+  },
+
+  removeNodes: (ids) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    for (const id of ids) {
+      clearMeshCache(id);
+      clearGeneratorCache(id);
+    }
+    set((s) => {
+      const remainingIds = s.selectedIds.filter((sid) => !idSet.has(sid));
+      const primaryRemoved = s.selectedId !== null && idSet.has(s.selectedId);
+      return {
+        nodes: s.nodes.filter((n) => !idSet.has(n.id)),
+        selectedId: primaryRemoved ? (remainingIds[0] ?? null) : s.selectedId,
         selectedIds: remainingIds,
         renderVersion: s.renderVersion + 1,
       };
@@ -291,7 +311,8 @@ export const useSceneStore = create<SceneStore>()(
       if (fromIndex < 0 || fromIndex === targetIndex) return s;
       const next = [...s.nodes];
       const [moved] = next.splice(fromIndex, 1);
-      const clamped = Math.max(0, Math.min(targetIndex, next.length));
+      const insertAt = fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
+      const clamped = Math.max(0, Math.min(insertAt, next.length));
       next.splice(clamped, 0, moved);
       return { nodes: next, renderVersion: s.renderVersion + 1 };
     });
