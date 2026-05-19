@@ -25,6 +25,7 @@ import { generateCubeGrid, noise3d } from './cube-grid';
 import { generateAutomataGrid } from './automata-grid';
 import { extrudeFromParams } from './svg-extrude';
 import { buildFillHost, generateFillPaths, FillShape } from './fills';
+import { BVH } from './bvh';
 import { tessellateCube, tessellateSphere, tessellateCone, tessellateCylinder } from './tessellate';
 import type { SvgExtrudeParams, TextExtrudeParams } from './types';
 
@@ -36,8 +37,17 @@ import type { SvgExtrudeParams, TextExtrudeParams } from './types';
 const meshTriangleCache = new Map<string, ln.Triangle[]>();
 
 export function clearMeshCache(nodeId?: string) {
-  if (nodeId) meshTriangleCache.delete(nodeId);
-  else meshTriangleCache.clear();
+  if (nodeId) {
+    meshTriangleCache.delete(nodeId);
+    hostBVHCache.delete(nodeId);
+    for (const k of fillCache.keys()) {
+      if (k.startsWith(`${nodeId}|fill|`)) fillCache.delete(k);
+    }
+  } else {
+    meshTriangleCache.clear();
+    hostBVHCache.clear();
+    fillCache.clear();
+  }
 }
 
 // Cache generator output (cube-grid, plane-grid, automata-grid, line-grid local paths)
@@ -54,32 +64,73 @@ const generatorCache = new Map<string, GeneratorCacheEntry>();
 interface FillCacheEntry { hostHash: string; fillHash: string; paths: ln.Paths; }
 const fillCache = new Map<string, FillCacheEntry>();
 
+// Cache the host BVH per nodeId — shared between BackFaceOccluder (which
+// needs it every render for occlusion) and fill generation. Without this,
+// camera orbit on a heavy mesh pays the BVH build cost on every frame.
+interface HostBVHCacheEntry { hostHash: string; host: ReturnType<typeof buildFillHost>; }
+const hostBVHCache = new Map<string, HostBVHCacheEntry>();
+
 export function clearGeneratorCache(nodeId?: string) {
   if (nodeId) generatorCache.delete(nodeId);
   else generatorCache.clear();
+}
+
+// Standard viewport box for uploaded meshes (matches createShape / fitInside).
+const MESH_FIT_BOX = new ln.Box(
+  new ln.Vector(-1.5, -1.5, -1.5),
+  new ln.Vector(1.5, 1.5, 1.5),
+);
+const MESH_FIT_ANCHOR = new ln.Vector(0.5, 0.5, 0.5);
+
+function deepCopyTriangles(triangles: ln.Triangle[]): ln.Triangle[] {
+  return triangles.map(
+    (t) =>
+      new ln.Triangle(
+        new ln.Vector(t.v1.x, t.v1.y, t.v1.z),
+        new ln.Vector(t.v2.x, t.v2.y, t.v2.z),
+        new ln.Vector(t.v3.x, t.v3.y, t.v3.z),
+      ),
+  );
+}
+
+function normalizeMeshTriangles(triangles: ln.Triangle[]): ln.Triangle[] {
+  const mesh = new ln.Mesh(deepCopyTriangles(triangles));
+  mesh.fitInside(MESH_FIT_BOX, MESH_FIT_ANCHOR);
+  return deepCopyTriangles(mesh.triangles);
+}
+
+function parseMeshTriangles(p: MeshParams): ln.Triangle[] | null {
+  if (p.format === 'obj') {
+    return ln.loadOBJ(p.data).triangles;
+  }
+  const binary = atob(p.data);
+  const buffer = new ArrayBuffer(binary.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+  return parseSTL(buffer);
+}
+
+function getOrLoadMeshTriangles(nodeId: string, p: MeshParams): ln.Triangle[] | null {
+  let triangles = meshTriangleCache.get(nodeId);
+  if (!triangles) {
+    try {
+      const raw = parseMeshTriangles(p);
+      if (!raw || raw.length === 0) return null;
+      triangles = normalizeMeshTriangles(raw);
+      console.log(`Loaded mesh "${p.fileName}": ${triangles.length} triangles`);
+      meshTriangleCache.set(nodeId, triangles);
+    } catch {
+      return null;
+    }
+  }
+  return triangles;
 }
 
 // Extract the host triangles for a mesh-like node (used for fills + slicing).
 // Returns null if the node has no inherent mesh form.
 function getHostTriangles(node: SceneNode): ln.Triangle[] | null {
   if (node.type === 'mesh') {
-    const p = node.params as MeshParams;
-    let triangles = meshTriangleCache.get(node.id);
-    if (!triangles) {
-      try {
-        if (p.format === 'obj') {
-          triangles = ln.loadOBJ(p.data).triangles;
-        } else {
-          const binary = atob(p.data);
-          const buffer = new ArrayBuffer(binary.length);
-          const view = new Uint8Array(buffer);
-          for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
-          triangles = parseSTL(buffer);
-        }
-        if (triangles && triangles.length > 0) meshTriangleCache.set(node.id, triangles);
-      } catch { return null; }
-    }
-    return triangles ?? null;
+    return getOrLoadMeshTriangles(node.id, node.params as MeshParams);
   }
   if (node.type === 'svg-extrude' || node.type === 'text-extrude') {
     const p = node.params as SvgExtrudeParams | TextExtrudeParams;
@@ -235,43 +286,12 @@ function createShape(
     case 'mesh': {
       const p = node.params as MeshParams;
       try {
-        let triangles = meshTriangleCache.get(node.id);
+        const triangles = getOrLoadMeshTriangles(node.id, p);
         if (!triangles) {
-          if (p.format === 'obj') {
-            const parsed = ln.loadOBJ(p.data);
-            triangles = parsed.triangles;
-          } else {
-            // STL: data is stored as base64-encoded binary
-            const binary = atob(p.data);
-            const buffer = new ArrayBuffer(binary.length);
-            const view = new Uint8Array(buffer);
-            for (let i = 0; i < binary.length; i++) {
-              view[i] = binary.charCodeAt(i);
-            }
-            triangles = parseSTL(buffer);
-          }
-          if (!triangles || triangles.length === 0) {
-            console.warn('Mesh has no triangles:', p.fileName);
-            return null;
-          }
-          console.log(`Loaded mesh "${p.fileName}": ${triangles.length} triangles`);
-          meshTriangleCache.set(node.id, triangles);
+          console.warn('Mesh has no triangles:', p.fileName);
+          return null;
         }
-        // Deep copy triangles so in-place transforms don't mutate cache
-        const copied = triangles.map(
-          (t) =>
-            new ln.Triangle(
-              new ln.Vector(t.v1.x, t.v1.y, t.v1.z),
-              new ln.Vector(t.v2.x, t.v2.y, t.v2.z),
-              new ln.Vector(t.v3.x, t.v3.y, t.v3.z),
-            ),
-        );
-        const mesh = new ln.Mesh(copied);
-        mesh.fitInside(
-          new ln.Box(new ln.Vector(-1.5, -1.5, -1.5), new ln.Vector(1.5, 1.5, 1.5)),
-          new ln.Vector(0.5, 0.5, 0.5),
-        );
-        shape = mesh;
+        shape = new ln.Mesh(deepCopyTriangles(triangles));
       } catch (e) {
         console.error('Failed to load mesh:', e);
         return null;
@@ -714,6 +734,49 @@ interface RenderOptions {
   suppressMainPaths?: boolean;
 }
 
+// Wrap a fill-bearing host so its analytic shape's silhouette still renders,
+// but the occlusion test returns the FARTHEST intersection along the eye ray
+// (via a BVH of the tessellated triangles). This lets cross-hatch lines
+// inside the host's volume stay visible — only points beyond the host's far
+// surface get hidden. Convex hosts behave correctly; concave hosts may have
+// pockets where this differs from strict CSG, which is fine for plotter art.
+class BackFaceOccluder {
+  inner: ln.ShapeT;
+  bvh: BVH;
+  cachedBox: ln.Box;
+
+  constructor(inner: ln.ShapeT, bvh: BVH) {
+    this.inner = inner;
+    this.bvh = bvh;
+    this.cachedBox = inner.boundingBox();
+  }
+
+  compile(): void {
+    const c = (this.inner as { compile?: () => void }).compile;
+    if (typeof c === 'function') c.call(this.inner);
+  }
+
+  paths(): ln.Paths { return this.inner.paths(); }
+
+  boundingBox(): ln.Box { return this.cachedBox; }
+
+  contains(v: ln.Vector, f: number): boolean { return this.inner.contains(v, f); }
+
+  intersect(r: ln.Ray): typeof ln.NoHit {
+    const hits = this.bvh.intersect(r.origin, r.direction);
+    if (hits.length === 0) return ln.NoHit;
+    // Farthest hit
+    const t = hits[hits.length - 1].t;
+    // Construct a Hit instance using NoHit's prototype (Hit is the default
+    // export of @lnjs/core/lib/hit; ln package re-exports `* from "./hit"`
+    // which skips the default class, so we clone the prototype).
+    const hit = Object.create(Object.getPrototypeOf(ln.NoHit));
+    hit.shape = this;
+    hit.t = t;
+    return hit as typeof ln.NoHit;
+  }
+}
+
 // Wrap a shape so it occludes but contributes no paths of its own.
 class OccluderOnly {
   inner: ln.ShapeT;
@@ -728,24 +791,47 @@ class OccluderOnly {
   intersect(r: ln.Ray): typeof ln.NoHit { return this.inner.intersect(r) as typeof ln.NoHit; }
 }
 
-export function renderScene(
+function pruneRenderCaches(nodes: SceneNode[]): void {
+  const liveIds = new Set(nodes.map((n) => n.id));
+  const liveFillKeys = new Set<string>();
+  for (const n of nodes) {
+    for (const f of n.fills ?? []) liveFillKeys.add(`${n.id}|fill|${f.id}`);
+  }
+  for (const k of meshTriangleCache.keys()) {
+    const nodeId = k.includes('|') ? k.slice(0, k.indexOf('|')) : k;
+    if (!liveIds.has(nodeId)) meshTriangleCache.delete(k);
+  }
+  for (const id of generatorCache.keys()) {
+    if (!liveIds.has(id)) generatorCache.delete(id);
+  }
+  for (const id of hostBVHCache.keys()) {
+    if (!liveIds.has(id)) hostBVHCache.delete(id);
+  }
+  for (const k of fillCache.keys()) {
+    const nodeId = k.slice(0, k.indexOf('|'));
+    if (!liveIds.has(nodeId) || !liveFillKeys.has(k)) fillCache.delete(k);
+  }
+}
+
+function computeProjectedPaths(
   nodes: SceneNode[],
   camera: CameraConfig,
   width: number,
   height: number,
   settings: RenderSettings,
-  options: RenderOptions & { physical?: PhysicalSize } = {},
-): RenderResult {
-  const start = performance.now();
+  options: RenderOptions = {},
+): ln.Paths {
   const scene = new ln.Scene();
   const extraPaths: ln.Paths = [];
   const suppress = options.suppressMainPaths === true;
   const wrap = (sh: ln.ShapeT): ln.ShapeT => (suppress ? (new OccluderOnly(sh) as unknown as ln.ShapeT) : sh);
 
-  // Pre-compute boolean child IDs once (O(N) instead of O(N²) inside the loop)
+  // Pre-compute boolean child IDs once (O(N) instead of O(N²) inside the loop).
+  // Children stay suppressed even when the boolean node is hidden — otherwise
+  // they'd render twice (once as children, once via the boolean).
   const booleanChildIds = new Set<string>();
   for (const n of nodes) {
-    if (n.type === 'boolean' && n.visible) {
+    if (n.type === 'boolean') {
       const ids = (n.params as BooleanParams).childIds;
       booleanChildIds.add(ids[0]);
       booleanChildIds.add(ids[1]);
@@ -794,52 +880,59 @@ export function renderScene(
 
     // Use createShapes for types that produce multiple shapes (cube-grid)
     const shapes = createShapes(node, nodes);
-    for (const sh of shapes) scene.add(wrap(sh));
+    const hasFills = !!(node.fills && node.fills.length > 0 && node.fills.some((f) => f.enabled));
 
-    // Fills: generate, wrap in FillShape, add to scene so ln.js handles
-    // inter-mesh occlusion automatically.
-    if (node.fills && node.fills.length > 0) {
+    // Build (or reuse) the host BVH if this node has fills AND a triangle
+    // form. The BVH is shared between BackFaceOccluder and fill generation,
+    // and persists across renders so camera orbit on heavy meshes stays
+    // cheap. Falls back to the raw shape when no triangle form exists
+    // (cube-grid / line-grid / point-cloud).
+    let host: ReturnType<typeof buildFillHost> | null = null;
+    let hostHash = '';
+    if (hasFills && shapes.length === 1) {
       const hostTris = getHostTriangles(node);
       if (hostTris && hostTris.length > 0) {
         const worldTris = transformTriangles(hostTris, node.transform);
-        // Cache host hash (geometry only) — used to detect when fills need
-        // regenerating because the host mesh changed.
-        const hostHash = `${node.id}|host|${worldTris.length}|${paramsHash({
+        hostHash = `${node.id}|host|${worldTris.length}|${paramsHash({
           tris: worldTris.length,
           t: node.transform,
         })}`;
-        let host: ReturnType<typeof buildFillHost> | null = null;
-        for (const fill of node.fills) {
-          if (!fill.enabled) continue;
-          if (options.penFilter !== undefined && fill.pen !== options.penFilter) continue;
-          const fillHash = paramsHash(fill);
-          const cacheKey = `${node.id}|fill|${fill.id}`;
-          let cached = fillCache.get(cacheKey);
-          if (!cached || cached.hostHash !== hostHash || cached.fillHash !== fillHash) {
-            if (!host) host = buildFillHost(worldTris);
-            const paths = generateFillPaths(fill, host);
-            cached = { hostHash, fillHash, paths };
-            fillCache.set(cacheKey, cached);
-          }
-          if (cached.paths.length > 0) {
-            const aabb = host
-              ? host.aabb
-              : (() => {
-                  // Compute a bbox without building the BVH if we got a cache hit
-                  let minX = Infinity, minY = Infinity, minZ = Infinity;
-                  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-                  for (const t of worldTris) {
-                    minX = Math.min(minX, t.v1.x, t.v2.x, t.v3.x);
-                    minY = Math.min(minY, t.v1.y, t.v2.y, t.v3.y);
-                    minZ = Math.min(minZ, t.v1.z, t.v2.z, t.v3.z);
-                    maxX = Math.max(maxX, t.v1.x, t.v2.x, t.v3.x);
-                    maxY = Math.max(maxY, t.v1.y, t.v2.y, t.v3.y);
-                    maxZ = Math.max(maxZ, t.v1.z, t.v2.z, t.v3.z);
-                  }
-                  return { minX, minY, minZ, maxX, maxY, maxZ };
-                })();
-            scene.add(new FillShape(cached.paths, aabb) as unknown as ln.ShapeT);
-          }
+        const cached = hostBVHCache.get(node.id);
+        if (cached && cached.hostHash === hostHash) {
+          host = cached.host;
+        } else {
+          host = buildFillHost(worldTris);
+          hostBVHCache.set(node.id, { hostHash, host });
+        }
+      }
+    }
+
+    // Wrap the host as a back-face occluder so its own front face doesn't
+    // hide surface hatches. In suppress passes (pen 2+), wrap() further
+    // composes an OccluderOnly on top — back-face occlusion is preserved
+    // so pen 2+ fills behave consistently with pen 1, while the host's
+    // silhouette paths (which belong to pen 1) are skipped.
+    const effectiveShapes: ln.ShapeT[] = host
+      ? [new BackFaceOccluder(shapes[0], host.bvh) as unknown as ln.ShapeT]
+      : shapes;
+    for (const sh of effectiveShapes) scene.add(wrap(sh));
+
+    // Fills: generate, wrap in FillShape, add to scene so ln.js handles
+    // inter-mesh occlusion automatically.
+    if (host) {
+      for (const fill of node.fills ?? []) {
+        if (!fill.enabled) continue;
+        if (options.penFilter !== undefined && fill.pen !== options.penFilter) continue;
+        const fillHash = paramsHash(fill);
+        const cacheKey = `${node.id}|fill|${fill.id}`;
+        let cached = fillCache.get(cacheKey);
+        if (!cached || cached.hostHash !== hostHash || cached.fillHash !== fillHash) {
+          const paths = generateFillPaths(fill, host);
+          cached = { hostHash, fillHash, paths };
+          fillCache.set(cacheKey, cached);
+        }
+        if (cached.paths.length > 0) {
+          scene.add(new FillShape(cached.paths, host.aabb) as unknown as ln.ShapeT);
         }
       }
     }
@@ -910,23 +1003,23 @@ export function renderScene(
     }
   }
 
-  const svg = toStyledSVG(paths, width, height, settings, options.physical);
+  pruneRenderCaches(nodes);
+  return paths;
+}
+
+export function renderScene(
+  nodes: SceneNode[],
+  camera: CameraConfig,
+  width: number,
+  height: number,
+  settings: RenderSettings,
+  options: RenderOptions & { physical?: PhysicalSize } = {},
+): RenderResult {
+  const start = performance.now();
+  const paths = computeProjectedPaths(nodes, camera, width, height, settings, options);
   const elapsed = performance.now() - start;
-
-  // Prune cache entries for nodes that no longer exist (auto-cleanup; works
-  // even though clearMeshCache/clearGeneratorCache from the main thread are
-  // no-ops in the worker context where these caches actually live).
-  const liveIds = new Set(nodes.map((n) => n.id));
-  for (const k of meshTriangleCache.keys()) {
-    const nodeId = k.includes('|') ? k.slice(0, k.indexOf('|')) : k;
-    if (!liveIds.has(nodeId)) meshTriangleCache.delete(k);
-  }
-  for (const id of generatorCache.keys()) {
-    if (!liveIds.has(id)) generatorCache.delete(id);
-  }
-
   return {
-    svg,
+    svg: toStyledSVG(paths, width, height, settings, options.physical),
     renderTimeMs: elapsed,
     pathCount: paths.length,
   };
@@ -993,53 +1086,13 @@ export function renderScenePerPen(
   const lowestPen = sortedPens[0];
   const penGroups: PenGroup[] = [];
   for (const pen of sortedPens) {
-    const result = renderToProjectedPaths(nodes, camera, width, height, settings, {
+    const paths = computeProjectedPaths(nodes, camera, width, height, settings, {
       penFilter: pen,
       suppressMainPaths: pen !== lowestPen,
     });
-    if (result.length > 0) penGroups.push({ pen, paths: result });
+    if (paths.length > 0) penGroups.push({ pen, paths });
   }
   return { penGroups, totalRenderTimeMs: performance.now() - start };
-}
-
-// Render to projected (screen-space) paths only — same as renderScene but
-// without SVG serialization. Used internally by per-pen rendering.
-function renderToProjectedPaths(
-  nodes: SceneNode[],
-  camera: CameraConfig,
-  width: number,
-  height: number,
-  settings: RenderSettings,
-  options: RenderOptions,
-): ln.Paths {
-  // Parse-back trick is fragile; instead, do the same work as renderScene but
-  // returning paths instead of SVG. We use a hidden flag-via-symbol mechanism:
-  // simplest is just to call renderScene and re-parse, but better is to expose
-  // the path array directly. For now, call a parallel internal path:
-  const result = renderScene(nodes, camera, width, height, settings, options);
-  return paths2DFromSVG(result.svg);
-}
-
-function paths2DFromSVG(svg: string): ln.Paths {
-  // Extract polyline points from the styled SVG (we control its shape so this
-  // regex match is safe). We don't need to undo the Y-flip — the export wrapper
-  // will re-apply the same transform when composing the final multi-pen SVG.
-  const out: ln.Paths = [];
-  const re = /points="([^"]+)"/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(svg))) {
-    const path: ln.Vector[] = [];
-    const pairs = m[1].trim().split(/\s+/);
-    for (const pair of pairs) {
-      const [xs, ys] = pair.split(',');
-      const x = parseFloat(xs);
-      const y = parseFloat(ys);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      path.push(new ln.Vector(x, y, 0));
-    }
-    if (path.length >= 2) out.push(path);
-  }
-  return out;
 }
 
 // Compose an SVG with multiple <g id="pen-N"> groups from per-pen path lists.
