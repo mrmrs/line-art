@@ -104,6 +104,7 @@ export function Sidebar() {
   const moveNode = useSceneStore((s) => s.moveNode);
   const toggleNodeVisibility = useSceneStore((s) => s.toggleNodeVisibility);
   const removeNode = useSceneStore((s) => s.removeNode);
+  const removeNodes = useSceneStore((s) => s.removeNodes);
   const addNode = useSceneStore((s) => s.addNode);
   const loadNodes = useSceneStore((s) => s.loadNodes);
   const appendNodes = useSceneStore((s) => s.appendNodes);
@@ -193,7 +194,7 @@ export function Sidebar() {
                     e.stopPropagation();
                     // If this node is part of a multi-selection, delete all of them.
                     if (selectedIds.length > 1 && selectedIds.includes(node.id)) {
-                      for (const sid of selectedIds) removeNode(sid);
+                      removeNodes(selectedIds);
                     } else {
                       removeNode(node.id);
                     }
