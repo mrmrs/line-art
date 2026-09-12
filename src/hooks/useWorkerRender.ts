@@ -55,7 +55,9 @@ export function useWorkerRender(
             renderTimeMs: msg.renderTimeMs,
             pathCount: msg.pathCount,
           });
-          setRendering(false);
+          // Keep the indicator visible until the final pass arrives — drafts
+          // are intermediate.
+          if (msg.isFinal) setRendering(false);
         }
       } else if (msg.type === 'error') {
         console.error('Worker render error:', msg.error);

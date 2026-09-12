@@ -1,58 +1,89 @@
-import * as ln from '@lnjs/core';
+import type * as ln from '@lnjs/core';
 
-// =============================================================================
-// Greedy nearest-neighbor path order optimization for plotter output.
-//
-// Reorders an array of polylines so the pen-up travel between consecutive
-// strokes is minimized. Each polyline may be reversed if its tail is closer
-// to the previous end than its head. Optimal-TSP this is not, but greedy NN
-// typically cuts plotter time 30–60% on real scenes and is O(N²) — fine for
-// a few thousand paths.
-// =============================================================================
+interface Endpoint {
+  x: number;
+  y: number;
+  path: number;
+  reverse: boolean;
+  rank: number;
+}
 
-export function optimizePathOrder(paths: ln.Paths): ln.Paths {
+interface Tree {
+  point: Endpoint;
+  axis: 'x' | 'y';
+  left: Tree | null;
+  right: Tree | null;
+  parent: Tree | null;
+  remaining: number;
+}
+
+// Exact greedy nearest-neighbor ordering with a balanced endpoint k-d tree.
+// Removing both endpoints of a visited path lets queries skip exhausted
+// subtrees. Typical queries are sublinear; worst-case searches remain O(N).
+// Tie-breaking matches the original linear search (input order, head first).
+export function optimizePathOrder(input: ln.Paths): ln.Paths {
+  const paths = input.filter((p) => p.length >= 2);
   if (paths.length < 2) return paths;
-  // Pre-extract endpoints (avoid touching Vector internals in inner loop)
-  const heads: Array<{ x: number; y: number }> = [];
-  const tails: Array<{ x: number; y: number }> = [];
-  for (const p of paths) {
-    heads.push({ x: p[0].x, y: p[0].y });
-    tails.push({ x: p[p.length - 1].x, y: p[p.length - 1].y });
+  const endpoints = paths.flatMap((p, path) => [
+    { x: p[0].x, y: p[0].y, path, reverse: false, rank: path * 2 },
+    { x: p[p.length - 1].x, y: p[p.length - 1].y, path, reverse: true, rank: path * 2 + 1 },
+  ]);
+  if (endpoints.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
+    throw new Error('Cannot optimize paths with non-finite endpoints');
   }
-
-  const used = new Array(paths.length).fill(false);
-  const order: { idx: number; reverse: boolean }[] = [];
-
-  // Start at the path with smallest head (top-left-ish) to be deterministic
-  let startIdx = 0;
-  let bestScore = Infinity;
-  for (let i = 0; i < paths.length; i++) {
-    const s = heads[i].x + heads[i].y;
-    if (s < bestScore) { bestScore = s; startIdx = i; }
+  const locations: Tree[] = new Array(endpoints.length);
+  function build(points: Endpoint[], depth: number, parent: Tree | null): Tree | null {
+    if (!points.length) return null;
+    const axis = depth % 2 ? 'y' : 'x';
+    points.sort((a, b) => a[axis] - b[axis] || a.rank - b.rank);
+    const mid = points.length >> 1;
+    const node: Tree = { point: points[mid], axis, left: null, right: null, parent, remaining: points.length };
+    locations[node.point.rank] = node;
+    node.left = build(points.slice(0, mid), depth + 1, node);
+    node.right = build(points.slice(mid + 1), depth + 1, node);
+    return node;
   }
-  used[startIdx] = true;
-  order.push({ idx: startIdx, reverse: false });
-  let cur = tails[startIdx];
-
-  for (let i = 1; i < paths.length; i++) {
-    let bestIdx = -1, bestReverse = false, bestDist = Infinity;
-    for (let j = 0; j < paths.length; j++) {
-      if (used[j]) continue;
-      const dh = (heads[j].x - cur.x) ** 2 + (heads[j].y - cur.y) ** 2;
-      const dt = (tails[j].x - cur.x) ** 2 + (tails[j].y - cur.y) ** 2;
-      if (dh < bestDist) { bestDist = dh; bestIdx = j; bestReverse = false; }
-      if (dt < bestDist) { bestDist = dt; bestIdx = j; bestReverse = true; }
+  const root = build(endpoints, 0, null);
+  const used = new Uint8Array(paths.length);
+  function remove(path: number) {
+    used[path] = 1;
+    for (const rank of [path * 2, path * 2 + 1]) {
+      let node: Tree | null = locations[rank];
+      while (node) { node.remaining--; node = node.parent; }
     }
-    if (bestIdx === -1) break;
-    used[bestIdx] = true;
-    order.push({ idx: bestIdx, reverse: bestReverse });
-    cur = bestReverse ? heads[bestIdx] : tails[bestIdx];
   }
-
-  const result: ln.Paths = [];
-  for (const o of order) {
-    const p = paths[o.idx];
-    result.push(o.reverse ? [...p].reverse() : p);
+  let start = 0;
+  for (let i = 1; i < paths.length; i++) {
+    if (paths[i][0].x + paths[i][0].y < paths[start][0].x + paths[start][0].y) start = i;
+  }
+  const result: ln.Paths = [paths[start]];
+  remove(start);
+  let current = paths[start][paths[start].length - 1];
+  while (result.length < paths.length) {
+    let best: Endpoint | null = null;
+    let bestDistance = Infinity;
+    function visit(node: Tree | null) {
+      if (!node || !node.remaining) return;
+      const p = node.point;
+      if (!used[p.path]) {
+        const distance = (p.x - current.x) ** 2 + (p.y - current.y) ** 2;
+        if (distance < bestDistance || (distance === bestDistance && (!best || p.rank < best.rank))) {
+          best = p;
+          bestDistance = distance;
+        }
+      }
+      const delta = current[node.axis] - p[node.axis];
+      visit(delta <= 0 ? node.left : node.right);
+      if (delta * delta <= bestDistance) visit(delta <= 0 ? node.right : node.left);
+    }
+    visit(root);
+    // The tree has at least one live endpoint until all paths are emitted.
+    const next = best as Endpoint | null;
+    if (!next) break;
+    const path = next.reverse ? [...paths[next.path]].reverse() : paths[next.path];
+    result.push(path);
+    current = path[path.length - 1];
+    remove(next.path);
   }
   return result;
 }

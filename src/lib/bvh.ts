@@ -55,11 +55,17 @@ export class BVH {
     return out;
   }
 
-  // True if `point` is inside the mesh (assumes closed/manifold).
-  // Counts ray crossings along +X.
+  // Merge coincident hits on triangulated faces. Raw intersect() retains
+  // individual triangle IDs for callers that need them.
+  crossings(...args: Parameters<BVH['intersect']>): { t: number; triIdx: number }[] {
+    const hits = this.intersect(...args);
+    return hits.filter((hit, i) => i === 0 || hit.t - hits[i - 1].t >
+      32 * Number.EPSILON * Math.max(1, Math.abs(hit.t), Math.abs(hits[i - 1].t)));
+  }
+
+  // Assumes a closed manifold; boundary/tangent points are not classified.
   containsPoint(point: { x: number; y: number; z: number }): boolean {
-    const hits = this.intersect(point, { x: 1, y: 0, z: 0 });
-    return hits.length % 2 === 1;
+    return this.crossings(point, { x: 1, y: 0, z: 0 }).length % 2 === 1;
   }
 
   bbox(): AABB {
@@ -132,23 +138,21 @@ function rayAABB(
   tMin: number,
   tMax: number,
 ): [number, number] | null {
-  let txMin = (aabb.minX - origin.x) / dir.x;
-  let txMax = (aabb.maxX - origin.x) / dir.x;
-  if (txMin > txMax) [txMin, txMax] = [txMax, txMin];
-  let tyMin = (aabb.minY - origin.y) / dir.y;
-  let tyMax = (aabb.maxY - origin.y) / dir.y;
-  if (tyMin > tyMax) [tyMin, tyMax] = [tyMax, tyMin];
-  if (txMin > tyMax || tyMin > txMax) return null;
-  if (tyMin > txMin) txMin = tyMin;
-  if (tyMax < txMax) txMax = tyMax;
-  let tzMin = (aabb.minZ - origin.z) / dir.z;
-  let tzMax = (aabb.maxZ - origin.z) / dir.z;
-  if (tzMin > tzMax) [tzMin, tzMax] = [tzMax, tzMin];
-  if (txMin > tzMax || tzMin > txMax) return null;
-  if (tzMin > txMin) txMin = tzMin;
-  if (tzMax < txMax) txMax = tzMax;
-  if (txMax < tMin || txMin > tMax) return null;
-  return [Math.max(txMin, tMin), Math.min(txMax, tMax)];
+  for (const axis of ['x', 'y', 'z'] as const) {
+    const lo = axis === 'x' ? aabb.minX : axis === 'y' ? aabb.minY : aabb.minZ;
+    const hi = axis === 'x' ? aabb.maxX : axis === 'y' ? aabb.maxY : aabb.maxZ;
+    if (dir[axis] === 0) {
+      if (origin[axis] < lo || origin[axis] > hi) return null;
+      continue; // Avoid 0/0 when a parallel ray lies on a slab boundary.
+    }
+    let enter = (lo - origin[axis]) / dir[axis];
+    let leave = (hi - origin[axis]) / dir[axis];
+    if (enter > leave) [enter, leave] = [leave, enter];
+    tMin = Math.max(tMin, enter);
+    tMax = Math.min(tMax, leave);
+    if (tMin > tMax) return null;
+  }
+  return [tMin, tMax];
 }
 
 // Möller-Trumbore ray-triangle intersection

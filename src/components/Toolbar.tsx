@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSceneStore } from '../lib/store';
 import { downloadSVG, copySVGToClipboard } from '../lib/export-svg';
-import { renderScene, renderScenePerPen, multiPenSvg } from '../lib/render';
+import { renderScenePerPen, multiPenSvg } from '../lib/render';
 import { optimizePathOrder } from '../lib/plotter-optimize';
 import type { ViewMode } from '../lib/types';
 
@@ -59,25 +59,16 @@ export function Toolbar() {
   const [paperSize, setPaperSize] = useState<keyof typeof PAPER_SIZES>('square');
   const [optimize, setOptimize] = useState(true);
 
-  const hasMultiplePens = (() => {
-    const pens = new Set<number>();
-    for (const n of nodes) for (const f of n.fills ?? []) if (f.enabled) pens.add(f.pen);
-    return pens.size > 1;
-  })();
-
   const buildExportSVG = (): string => {
     const camera = cameras[activeCameraIndex];
     const highQuality = { ...renderSettings, step: 0.01 };
     const { w, h, physW, physH } = PAPER_SIZES[paperSize];
     const physical = { width: physW, height: physH };
-    if (hasMultiplePens) {
-      const { penGroups } = renderScenePerPen(nodes, camera, w, h, highQuality);
-      const optimized = optimize
-        ? penGroups.map((g) => ({ ...g, paths: optimizePathOrder(g.paths) }))
-        : penGroups;
-      return multiPenSvg(optimized, w, h, highQuality, PEN_PALETTE, physical);
-    }
-    return renderScene(nodes, camera, w, h, highQuality, { physical }).svg;
+    const { penGroups } = renderScenePerPen(nodes, camera, w, h, highQuality);
+    const optimized = optimize
+      ? penGroups.map((g) => ({ ...g, paths: optimizePathOrder(g.paths) }))
+      : penGroups;
+    return multiPenSvg(optimized, w, h, highQuality, PEN_PALETTE, physical);
   };
 
   const handleExportSVG = () => {

@@ -35,16 +35,21 @@ import type { SvgExtrudeParams, TextExtrudeParams } from './types';
 
 // Cache parsed mesh triangle data to avoid re-parsing OBJ/STL on every render
 const meshTriangleCache = new Map<string, ln.Triangle[]>();
+const meshSourceCache = new Map<string, { data: string; format: MeshParams['format'] }>();
 
 export function clearMeshCache(nodeId?: string) {
   if (nodeId) {
-    meshTriangleCache.delete(nodeId);
+    for (const key of meshTriangleCache.keys()) {
+      if (key === nodeId || key.startsWith(`${nodeId}|`)) meshTriangleCache.delete(key);
+    }
+    meshSourceCache.delete(nodeId);
     hostBVHCache.delete(nodeId);
     for (const k of fillCache.keys()) {
       if (k.startsWith(`${nodeId}|fill|`)) fillCache.delete(k);
     }
   } else {
     meshTriangleCache.clear();
+    meshSourceCache.clear();
     hostBVHCache.clear();
     fillCache.clear();
   }
@@ -67,7 +72,7 @@ const fillCache = new Map<string, FillCacheEntry>();
 // Cache the host BVH per nodeId — shared between BackFaceOccluder (which
 // needs it every render for occlusion) and fill generation. Without this,
 // camera orbit on a heavy mesh pays the BVH build cost on every frame.
-interface HostBVHCacheEntry { hostHash: string; host: ReturnType<typeof buildFillHost>; }
+interface HostBVHCacheEntry { triangles: ln.Triangle[]; hostHash: string; host: ReturnType<typeof buildFillHost>; }
 const hostBVHCache = new Map<string, HostBVHCacheEntry>();
 
 export function clearGeneratorCache(nodeId?: string) {
@@ -111,6 +116,8 @@ function parseMeshTriangles(p: MeshParams): ln.Triangle[] | null {
 }
 
 function getOrLoadMeshTriangles(nodeId: string, p: MeshParams): ln.Triangle[] | null {
+  const source = meshSourceCache.get(nodeId);
+  if (source && (source.data !== p.data || source.format !== p.format)) clearMeshCache(nodeId);
   let triangles = meshTriangleCache.get(nodeId);
   if (!triangles) {
     try {
@@ -119,6 +126,7 @@ function getOrLoadMeshTriangles(nodeId: string, p: MeshParams): ln.Triangle[] | 
       triangles = normalizeMeshTriangles(raw);
       console.log(`Loaded mesh "${p.fileName}": ${triangles.length} triangles`);
       meshTriangleCache.set(nodeId, triangles);
+      meshSourceCache.set(nodeId, { data: p.data, format: p.format });
     } catch {
       return null;
     }
@@ -491,7 +499,7 @@ function createSlicedPaths(
     const plane = new ln.Plane(point, normal);
     try {
       const slicePaths = plane.intersectMesh(mesh);
-      allPaths.push(...slicePaths);
+      for (const path of slicePaths) allPaths.push(path);
     } catch { /* skip degenerate slices */ }
   }
 
@@ -801,6 +809,9 @@ function pruneRenderCaches(nodes: SceneNode[]): void {
     const nodeId = k.includes('|') ? k.slice(0, k.indexOf('|')) : k;
     if (!liveIds.has(nodeId)) meshTriangleCache.delete(k);
   }
+  for (const id of meshSourceCache.keys()) {
+    if (!liveIds.has(id)) meshSourceCache.delete(id);
+  }
   for (const id of generatorCache.keys()) {
     if (!liveIds.has(id)) generatorCache.delete(id);
   }
@@ -867,14 +878,14 @@ function computeProjectedPaths(
           extraPaths.push(transformed);
         }
       } else {
-        extraPaths.push(...localPaths);
+        for (const path of localPaths) extraPaths.push(path);
       }
       continue;
     }
 
     if (node.slicing.enabled && !suppress) {
       const slicePaths = createSlicedPaths(node, nodes);
-      extraPaths.push(...slicePaths);
+      for (const path of slicePaths) extraPaths.push(path);
       // Also add the shape for occlusion
     }
 
@@ -892,18 +903,20 @@ function computeProjectedPaths(
     if (hasFills && shapes.length === 1) {
       const hostTris = getHostTriangles(node);
       if (hostTris && hostTris.length > 0) {
-        const worldTris = transformTriangles(hostTris, node.transform);
-        hostHash = `${node.id}|host|${worldTris.length}|${paramsHash({
-          tris: worldTris.length,
-          t: node.transform,
-        })}`;
+        const transformHash = paramsHash(node.transform);
         const cached = hostBVHCache.get(node.id);
-        if (cached && cached.hostHash === hostHash) {
+        // Triangle identity changes when geometry changes, even if its count
+        // stays the same. Only transform/build on a cache miss.
+        if (cached && cached.triangles === hostTris && cached.hostHash === transformHash) {
           host = cached.host;
         } else {
-          host = buildFillHost(worldTris);
-          hostBVHCache.set(node.id, { hostHash, host });
+          host = buildFillHost(transformTriangles(hostTris, node.transform));
+          hostBVHCache.set(node.id, { triangles: hostTris, hostHash: transformHash, host });
+          for (const key of fillCache.keys()) {
+            if (key.startsWith(`${node.id}|fill|`)) fillCache.delete(key);
+          }
         }
+        hostHash = transformHash;
       }
     }
 
@@ -961,7 +974,7 @@ function computeProjectedPaths(
 
   if (camera.ortho) {
     const s = (camera.orthoSize ?? 3) / zoom;
-    const matrix = ln.lookAt(eye, center, up).orthographic(-s, s, -s, s, settings.near, settings.far);
+    const matrix = ln.lookAt(eye, center, up).orthographic(-s * width / height, s * width / height, -s, s, settings.near, settings.far);
     paths = scene.renderWithMatrix(matrix, eye, width, height, settings.step);
   } else {
     paths = scene.render(
@@ -979,7 +992,7 @@ function computeProjectedPaths(
     const s2 = (camera.orthoSize ?? 3) / zoom;
     const matrix = camera.ortho
       ? ln.lookAt(eye, center, up).orthographic(
-          -s2, s2,
+          -s2 * width / height, s2 * width / height,
           -s2, s2,
           settings.near, settings.far,
         )
@@ -1017,10 +1030,10 @@ export function renderScene(
 ): RenderResult {
   const start = performance.now();
   const paths = computeProjectedPaths(nodes, camera, width, height, settings, options);
-  const elapsed = performance.now() - start;
+  const svg = toStyledSVG(paths, width, height, settings, options.physical);
   return {
-    svg: toStyledSVG(paths, width, height, settings, options.physical),
-    renderTimeMs: elapsed,
+    svg,
+    renderTimeMs: performance.now() - start,
     pathCount: paths.length,
   };
 }

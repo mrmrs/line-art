@@ -1,4 +1,5 @@
 import * as ln from '@lnjs/core';
+import { mulberry32 } from './random';
 import PoissonDiskSampling from 'poisson-disk-sampling';
 import { BVH, buildBVHFromTriangles } from './bvh';
 import type { FillConfig } from './types';
@@ -43,7 +44,9 @@ function crossHatch(fill: FillConfig, host: FillHost): ln.Paths {
     ? fill.crossHatchAxes
     : [fill.axis];
   const paths: ln.Paths = [];
-  for (const axis of axes) paths.push(...rayCrossHatch(host, axis, fill.spacing));
+  for (const axis of axes) {
+    for (const path of rayCrossHatch(host, axis, fill.spacing)) paths.push(path);
+  }
   return paths;
 }
 
@@ -79,7 +82,7 @@ function rayCrossHatch(host: FillHost, axis: 'x' | 'y' | 'z', spacing: number): 
   for (let u = uMin + sx * 0.5; u <= uMax; u += sx) {
     for (let v = vMin + sx * 0.5; v <= vMax; v += sx) {
       const origin = makeOrigin(u, v);
-      const hits = host.bvh.intersect(origin, dir, 0, wMax - wMin);
+      const hits = host.bvh.crossings(origin, dir, 0, wMax - wMin);
       // Pair consecutive hits as enter/exit
       for (let i = 0; i + 1 < hits.length; i += 2) {
         const t1 = hits[i].t, t2 = hits[i + 1].t;
@@ -212,7 +215,7 @@ function stipple(fill: FillConfig, host: FillHost): ln.Paths {
       minDistance: minDist,
       maxDistance: minDist * 2,
       tries: 8,
-    });
+    }, mulberry32(42));
     const points = sampler.fill();
     for (const p of points) {
       candidates.push([a.minX + p[0], a.minY + p[1], a.minZ + p[2]]);
@@ -275,7 +278,7 @@ function contour(fill: FillConfig, host: FillHost): ln.Paths {
     const plane = new ln.Plane(point, normal);
     try {
       const slicePaths = plane.intersectMesh(mesh);
-      result.push(...slicePaths);
+      for (const path of slicePaths) result.push(path);
     } catch { /* skip bad slices */ }
   }
   return result;

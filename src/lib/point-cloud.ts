@@ -131,7 +131,7 @@ export function generatePointCloud(
       const pts: Vec3[] = [];
       const goldenAngle = Math.PI * (3 - Math.sqrt(5));
       for (let i = 0; i < count; i++) {
-        const y = 1 - (i / (count - 1)) * 2;
+        const y = count === 1 ? 0 : 1 - (i / (count - 1)) * 2;
         const r2 = Math.sqrt(1 - y * y);
         const theta = goldenAngle * i;
         pts.push([
@@ -146,7 +146,7 @@ export function generatePointCloud(
     case 'grid': {
       const pts: Vec3[] = [];
       const half = radius;
-      const step = gridSpacing || 0.25;
+      const step = Number.isFinite(gridSpacing) && gridSpacing > 0 ? gridSpacing : 0.25;
       for (let x = -half; x <= half; x += step) {
         for (let y = -half; y <= half; y += step) {
           for (let z = -half; z <= half; z += step) {

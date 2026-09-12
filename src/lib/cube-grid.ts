@@ -1,4 +1,5 @@
 import * as ln from '@lnjs/core';
+import { mulberry32 } from './random';
 import { createNoise3D } from 'simplex-noise';
 import type { CubeGridParams } from './types';
 
@@ -15,23 +16,33 @@ import type { CubeGridParams } from './types';
 // simplex-noise is faster and has no axis-aligned artifacts vs the previous
 // value-noise. Each seed gets its own simplex instance, cached.
 
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6D2B79F5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 const noiseCache = new Map<number, (x: number, y: number, z: number) => number>();
 function getNoise(seed: number) {
   let fn = noiseCache.get(seed);
   if (fn) return fn;
   fn = createNoise3D(mulberry32(seed));
+  if (noiseCache.size >= 64) noiseCache.delete(noiseCache.keys().next().value!);
   noiseCache.set(seed, fn);
+  return fn;
+}
+
+// Compile each expression once, including invalid expressions while editing.
+// Keep this bounded so changing formulas cannot grow a worker indefinitely.
+const expressionCache = new Map<string, (...args: number[]) => number | boolean>();
+function getExpression(expression: string, presence: boolean) {
+  const key = `${presence}:${expression}`;
+  let fn = expressionCache.get(key);
+  if (fn) return fn;
+  try {
+    fn = new Function(
+      'x', 'y', 'z', 'ix', 'iy', 'iz', 'nx', 'ny', 'nz', 'size',
+      presence ? `return !!(${expression})` : `return ${expression}`,
+    ) as (...args: number[]) => number | boolean;
+  } catch {
+    fn = () => presence ? true : 1;
+  }
+  if (expressionCache.size >= 64) expressionCache.delete(expressionCache.keys().next().value!);
+  expressionCache.set(key, fn);
   return fn;
 }
 
@@ -242,13 +253,10 @@ function computeSize(ctx: CellContext, params: CubeGridParams): number {
 
     case 'expression':
       try {
-        const fn = new Function(
-          'x', 'y', 'z', 'ix', 'iy', 'iz', 'nx', 'ny', 'nz',
-          `return ${params.sizeExpression}`,
-        ) as (...args: number[]) => number;
-        t = Math.max(0, Math.min(1, fn(
+        const fn = getExpression(params.sizeExpression, false);
+        t = Math.max(0, Math.min(1, Number(fn(
           ctx.x, ctx.y, ctx.z, ctx.ix, ctx.iy, ctx.iz, ctx.nx, ctx.ny, ctx.nz,
-        )));
+        ))));
       } catch {
         t = 1;
       }
@@ -412,13 +420,10 @@ function computePresence(ctx: CellContext, size: number, params: CubeGridParams,
 
     case 'expression':
       try {
-        const fn = new Function(
-          'x', 'y', 'z', 'ix', 'iy', 'iz', 'nx', 'ny', 'nz', 'size',
-          `return !!(${params.presenceExpression})`,
-        ) as (...args: number[]) => boolean;
-        return fn(
+        const fn = getExpression(params.presenceExpression, true);
+        return Boolean(fn(
           ctx.x, ctx.y, ctx.z, ctx.ix, ctx.iy, ctx.iz, ctx.nx, ctx.ny, ctx.nz, size,
-        );
+        ));
       } catch {
         return true;
       }
