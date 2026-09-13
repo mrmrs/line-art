@@ -2,16 +2,21 @@
 // SVG Export Utilities
 // =============================================================================
 
-export function downloadSVG(svgString: string, filename: string = 'plotter-art.svg') {
-  const blob = new Blob([svgString], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
+export function downloadSVG(
+  svgString: string,
+  filename: string = 'plotter-art.svg',
+) {
+  downloadText(svgString, filename, 'image/svg+xml');
+}
+export function downloadText(text: string, filename: string, type: string) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function copySVGToClipboard(svgString: string): Promise<void> {

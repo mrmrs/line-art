@@ -1,5 +1,6 @@
 import * as ln from '@lnjs/core';
 import { mulberry32 } from './random';
+import { bounded, LIMITS } from './limits';
 import PoissonDiskSampling from 'poisson-disk-sampling';
 import { BVH, buildBVHFromTriangles } from './bvh';
 import type { FillConfig } from './types';
@@ -13,7 +14,14 @@ import type { FillConfig } from './types';
 // free — the same trick PointCloud uses.
 // =============================================================================
 
-interface AABB { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number; }
+interface AABB {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+}
 
 interface FillHost {
   triangles: ln.Triangle[];
@@ -30,62 +38,99 @@ export function buildFillHost(triangles: ln.Triangle[]): FillHost {
 export function generateFillPaths(fill: FillConfig, host: FillHost): ln.Paths {
   if (!fill.enabled) return [];
   switch (fill.type) {
-    case 'cross-hatch':   return crossHatch(fill, host);
-    case 'surface-hatch': return surfaceHatch(fill, host);
-    case 'stipple':       return stipple(fill, host);
-    case 'contour':       return contour(fill, host);
+    case 'cross-hatch':
+      return crossHatch(fill, host);
+    case 'surface-hatch':
+      return surfaceHatch(fill, host);
+    case 'stipple':
+      return stipple(fill, host);
+    case 'contour':
+      return contour(fill, host);
   }
 }
 
 // ---------- Cross-hatch (volumetric, along one or more axes) ----------
 
 function crossHatch(fill: FillConfig, host: FillHost): ln.Paths {
-  const axes = fill.crossHatchAxes && fill.crossHatchAxes.length > 0
-    ? fill.crossHatchAxes
-    : [fill.axis];
+  const axes =
+    fill.crossHatchAxes && fill.crossHatchAxes.length > 0
+      ? fill.crossHatchAxes
+      : [fill.axis];
   const paths: ln.Paths = [];
   for (const axis of axes) {
-    for (const path of rayCrossHatch(host, axis, fill.spacing)) paths.push(path);
+    for (const path of rayCrossHatch(host, axis, fill.spacing))
+      paths.push(path);
   }
   return paths;
 }
 
-function rayCrossHatch(host: FillHost, axis: 'x' | 'y' | 'z', spacing: number): ln.Paths {
+function rayCrossHatch(
+  host: FillHost,
+  axis: 'x' | 'y' | 'z',
+  spacing: number,
+): ln.Paths {
   const a = host.aabb;
   // Slight inset so rays start clearly outside mesh
   const eps = 1e-3;
   const result: ln.Paths = [];
 
   // Define which two axes form the orthogonal sampling plane, and the ray axis.
-  let uMin: number, uMax: number, vMin: number, vMax: number, wMin: number, wMax: number;
+  let uMin: number,
+    uMax: number,
+    vMin: number,
+    vMax: number,
+    wMin: number,
+    wMax: number;
   let makeOrigin: (u: number, v: number) => { x: number; y: number; z: number };
   let dir: { x: number; y: number; z: number };
   let endpoint: (u: number, v: number, w: number) => ln.Vector;
   if (axis === 'z') {
-    uMin = a.minX; uMax = a.maxX; vMin = a.minY; vMax = a.maxY; wMin = a.minZ - eps; wMax = a.maxZ + eps;
+    uMin = a.minX;
+    uMax = a.maxX;
+    vMin = a.minY;
+    vMax = a.maxY;
+    wMin = a.minZ - eps;
+    wMax = a.maxZ + eps;
     makeOrigin = (u, v) => ({ x: u, y: v, z: wMin });
     dir = { x: 0, y: 0, z: 1 };
     endpoint = (u, v, w) => new ln.Vector(u, v, w);
   } else if (axis === 'y') {
-    uMin = a.minX; uMax = a.maxX; vMin = a.minZ; vMax = a.maxZ; wMin = a.minY - eps; wMax = a.maxY + eps;
+    uMin = a.minX;
+    uMax = a.maxX;
+    vMin = a.minZ;
+    vMax = a.maxZ;
+    wMin = a.minY - eps;
+    wMax = a.maxY + eps;
     makeOrigin = (u, v) => ({ x: u, y: wMin, z: v });
     dir = { x: 0, y: 1, z: 0 };
     endpoint = (u, v, w) => new ln.Vector(u, w, v);
   } else {
-    uMin = a.minY; uMax = a.maxY; vMin = a.minZ; vMax = a.maxZ; wMin = a.minX - eps; wMax = a.maxX + eps;
+    uMin = a.minY;
+    uMax = a.maxY;
+    vMin = a.minZ;
+    vMax = a.maxZ;
+    wMin = a.minX - eps;
+    wMax = a.maxX + eps;
     makeOrigin = (u, v) => ({ x: wMin, y: u, z: v });
     dir = { x: 1, y: 0, z: 0 };
     endpoint = (u, v, w) => new ln.Vector(w, u, v);
   }
 
   const sx = Math.max(spacing, 1e-3);
+  bounded(
+    Math.ceil((uMax - uMin) / sx) * Math.ceil((vMax - vMin) / sx),
+    'Hatch ray count',
+    0,
+    LIMITS.paths,
+  );
   for (let u = uMin + sx * 0.5; u <= uMax; u += sx) {
     for (let v = vMin + sx * 0.5; v <= vMax; v += sx) {
       const origin = makeOrigin(u, v);
       const hits = host.bvh.crossings(origin, dir, 0, wMax - wMin);
       // Pair consecutive hits as enter/exit
       for (let i = 0; i + 1 < hits.length; i += 2) {
-        const t1 = hits[i].t, t2 = hits[i + 1].t;
+        const t1 = hits[i].t,
+          t2 = hits[i + 1].t;
         if (t2 - t1 < 1e-4) continue;
         const w1 = wMin + t1;
         const w2 = wMin + t2;
@@ -99,50 +144,76 @@ function rayCrossHatch(host: FillHost, axis: 'x' | 'y' | 'z', spacing: number): 
 // ---------- Surface hatch (face-aligned parallel lines on each triangle) ----------
 
 function surfaceHatch(fill: FillConfig, host: FillHost): ln.Paths {
+  const estimated = host.triangles.reduce(
+    (sum, t) =>
+      sum +
+      Math.ceil(
+        (t.v1.distance(t.v2) + t.v2.distance(t.v3) + t.v3.distance(t.v1)) /
+          fill.spacing,
+      ),
+    0,
+  );
+  bounded(estimated, 'Surface hatch candidates', 0, LIMITS.paths);
   const result: ln.Paths = [];
   const spacing = Math.max(fill.spacing, 1e-3);
   const angle = (fill.angleDeg * Math.PI) / 180;
 
   for (const t of host.triangles) {
     // Triangle normal
-    const e1x = t.v2.x - t.v1.x, e1y = t.v2.y - t.v1.y, e1z = t.v2.z - t.v1.z;
-    const e2x = t.v3.x - t.v1.x, e2y = t.v3.y - t.v1.y, e2z = t.v3.z - t.v1.z;
+    const e1x = t.v2.x - t.v1.x,
+      e1y = t.v2.y - t.v1.y,
+      e1z = t.v2.z - t.v1.z;
+    const e2x = t.v3.x - t.v1.x,
+      e2y = t.v3.y - t.v1.y,
+      e2z = t.v3.z - t.v1.z;
     let nx = e1y * e2z - e1z * e2y;
     let ny = e1z * e2x - e1x * e2z;
     let nz = e1x * e2y - e1y * e2x;
     const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
     if (nLen < 1e-9) continue;
-    nx /= nLen; ny /= nLen; nz /= nLen;
+    nx /= nLen;
+    ny /= nLen;
+    nz /= nLen;
 
     // Build an in-plane basis (u, v) orthonormal to n. Pick u as the longer
     // projection of world X or Y onto the plane to be predictable.
     let ux: number, uy: number, uz: number;
     if (Math.abs(nx) < 0.9) {
       // u = normalize(X - (X·n)*n)
-      ux = 1 - nx * nx; uy = -nx * ny; uz = -nx * nz;
+      ux = 1 - nx * nx;
+      uy = -nx * ny;
+      uz = -nx * nz;
     } else {
-      ux = -ny * nx; uy = 1 - ny * ny; uz = -ny * nz;
+      ux = -ny * nx;
+      uy = 1 - ny * ny;
+      uz = -ny * nz;
     }
     const ul = Math.sqrt(ux * ux + uy * uy + uz * uz);
     if (ul < 1e-9) continue;
-    ux /= ul; uy /= ul; uz /= ul;
+    ux /= ul;
+    uy /= ul;
+    uz /= ul;
     // v = n × u
     const vx = ny * uz - nz * uy;
     const vy = nz * ux - nx * uz;
     const vz = nx * uy - ny * ux;
 
     // Rotate (u, v) by `angle` around n
-    const cs = Math.cos(angle), sn = Math.sin(angle);
-    const ux2 = ux * cs + vx * sn, uy2 = uy * cs + vy * sn, uz2 = uz * cs + vz * sn;
-    const vx2 = -ux * sn + vx * cs, vy2 = -uy * sn + vy * cs, vz2 = -uz * sn + vz * cs;
+    const cs = Math.cos(angle),
+      sn = Math.sin(angle);
+    const ux2 = ux * cs + vx * sn,
+      uy2 = uy * cs + vy * sn,
+      uz2 = uz * cs + vz * sn;
+    const vx2 = -ux * sn + vx * cs,
+      vy2 = -uy * sn + vy * cs,
+      vz2 = -uz * sn + vz * cs;
 
     // Project triangle vertices onto (u, v)
     const proj = (px: number, py: number, pz: number): [number, number] => {
-      const dx = px - t.v1.x, dy = py - t.v1.y, dz = pz - t.v1.z;
-      return [
-        dx * ux2 + dy * uy2 + dz * uz2,
-        dx * vx2 + dy * vy2 + dz * vz2,
-      ];
+      const dx = px - t.v1.x,
+        dy = py - t.v1.y,
+        dz = pz - t.v1.z;
+      return [dx * ux2 + dy * uy2 + dz * uz2, dx * vx2 + dy * vy2 + dz * vz2];
     };
     const A = proj(t.v1.x, t.v1.y, t.v1.z);
     const B = proj(t.v2.x, t.v2.y, t.v2.z);
@@ -156,14 +227,17 @@ function surfaceHatch(fill: FillConfig, host: FillHost): ln.Paths {
 
     // Triangle edges as (v = f(u)) lines for clipping
     const edges: Array<{ p: [number, number]; q: [number, number] }> = [
-      { p: A, q: B }, { p: B, q: C }, { p: C, q: A },
+      { p: A, q: B },
+      { p: B, q: C },
+      { p: C, q: A },
     ];
 
     for (let u = Math.ceil(minU / spacing) * spacing; u <= maxU; u += spacing) {
       // Find intersections of vertical line u=const with triangle edges
       const vs: number[] = [];
       for (const e of edges) {
-        const [px, pv] = e.p; const [qx, qv] = e.q;
+        const [px, pv] = e.p;
+        const [qx, qv] = e.q;
         if (px === qx) continue;
         const tt = (u - px) / (qx - px);
         if (tt < -1e-6 || tt > 1 + 1e-6) continue;
@@ -171,7 +245,8 @@ function surfaceHatch(fill: FillConfig, host: FillHost): ln.Paths {
       }
       if (vs.length < 2) continue;
       vs.sort((a, b) => a - b);
-      const v0 = vs[0], v1 = vs[vs.length - 1];
+      const v0 = vs[0],
+        v1 = vs[vs.length - 1];
       if (v1 - v0 < 1e-4) continue;
       if (v0 > maxV + 1e-6 || v1 < minV - 1e-6) continue;
 
@@ -188,19 +263,97 @@ function surfaceHatch(fill: FillConfig, host: FillHost): ln.Paths {
   return result;
 }
 
+// Area-weighted barycentric candidates lie on the actual triangles, including
+// zero-thickness meshes. Euclidean rejection is a conservative lower bound on
+// intrinsic surface separation (it may thin opposing folds more aggressively).
+function surfaceStipple(fill: FillConfig, host: FillHost): ln.Paths {
+  let area = 0;
+  const faces = host.triangles
+    .map((t) => {
+      const normal = t.v2.sub(t.v1).cross(t.v3.sub(t.v1));
+      area += normal.length() / 2;
+      return { t, end: area, normal };
+    })
+    .filter((f) => f.normal.length() > 1e-12);
+  if (!faces.length) return [];
+  const target = Math.ceil(area * fill.density);
+  bounded(target, 'Surface stipple count', 0, LIMITS.cells);
+  const separation = Math.max(fill.dotSize * 2, 0.7 / Math.sqrt(fill.density));
+  const buckets = new Map<string, ln.Vector[]>();
+  const random = mulberry32(42),
+    paths: ln.Paths = [];
+  let accepted = 0;
+  for (let attempt = 0; attempt < target * 20 && accepted < target; attempt++) {
+    const pick = random() * area;
+    let lo = 0,
+      hi = faces.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (faces[mid].end < pick) lo = mid + 1;
+      else hi = mid;
+    }
+    const { t, normal } = faces[lo];
+    const r = Math.sqrt(random()),
+      v = random();
+    const p = new ln.Vector(
+      (1 - r) * t.v1.x + r * (1 - v) * t.v2.x + r * v * t.v3.x,
+      (1 - r) * t.v1.y + r * (1 - v) * t.v2.y + r * v * t.v3.y,
+      (1 - r) * t.v1.z + r * (1 - v) * t.v2.z + r * v * t.v3.z,
+    );
+    const ix = Math.floor(p.x / separation),
+      iy = Math.floor(p.y / separation),
+      iz = Math.floor(p.z / separation);
+    let near = false;
+    for (let x = -1; x <= 1; x++)
+      for (let y = -1; y <= 1; y++)
+        for (let z = -1; z <= 1; z++) {
+          for (const other of buckets.get(`${ix + x},${iy + y},${iz + z}`) ??
+            [])
+            if (p.distance(other) < separation) near = true;
+        }
+    if (near) continue;
+    const key = `${ix},${iy},${iz}`;
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(p);
+    buckets.set(key, bucket);
+    accepted++;
+    const u = t.v2.sub(t.v1).normalize(),
+      vdir = normal.normalize().cross(u);
+    for (const axis of [u, vdir])
+      paths.push([
+        new ln.Vector(
+          p.x - axis.x * fill.dotSize,
+          p.y - axis.y * fill.dotSize,
+          p.z - axis.z * fill.dotSize,
+        ),
+        new ln.Vector(
+          p.x + axis.x * fill.dotSize,
+          p.y + axis.y * fill.dotSize,
+          p.z + axis.z * fill.dotSize,
+        ),
+      ]);
+  }
+  return paths;
+}
+
 // ---------- Stipple (Poisson disc sampling) ----------
 
 function stipple(fill: FillConfig, host: FillHost): ln.Paths {
+  if (fill.surfaceMode) return surfaceStipple(fill, host);
   const result: ln.Paths = [];
   const a = host.aabb;
-  const w = a.maxX - a.minX, h = a.maxY - a.minY, d = a.maxZ - a.minZ;
+  const w = a.maxX - a.minX,
+    h = a.maxY - a.minY,
+    d = a.maxZ - a.minZ;
   if (w < 1e-6 || h < 1e-6 || d < 1e-6) return result;
 
   // density: target points per cubic world unit (heuristic).
   // minDistance: derived from density so denser → tighter packing.
   const target = Math.max(1, fill.density);
   const volume = w * h * d;
-  const targetCount = Math.floor(target * (fill.surfaceMode ? Math.sqrt(volume) : volume) * 0.5);
+  const targetCount = Math.floor(
+    target * (fill.surfaceMode ? Math.sqrt(volume) : volume) * 0.5,
+  );
   const minDist = Math.max(
     fill.dotSize * 1.5,
     fill.surfaceMode
@@ -208,14 +361,23 @@ function stipple(fill: FillConfig, host: FillHost): ln.Paths {
       : Math.pow(volume / Math.max(1, targetCount), 1 / 3),
   );
 
+  bounded(
+    Math.ceil((w * h * d) / minDist ** 3) * 8,
+    'Stipple sampling cells',
+    0,
+    LIMITS.samples,
+  );
   let candidates: Array<[number, number, number]> = [];
   try {
-    const sampler = new PoissonDiskSampling({
-      shape: [w, h, d],
-      minDistance: minDist,
-      maxDistance: minDist * 2,
-      tries: 8,
-    }, mulberry32(42));
+    const sampler = new PoissonDiskSampling(
+      {
+        shape: [w, h, d],
+        minDistance: minDist,
+        maxDistance: minDist * 2,
+        tries: 8,
+      },
+      mulberry32(42),
+    );
     const points = sampler.fill();
     for (const p of points) {
       candidates.push([a.minX + p[0], a.minY + p[1], a.minZ + p[2]]);
@@ -229,16 +391,8 @@ function stipple(fill: FillConfig, host: FillHost): ln.Paths {
           candidates.push([x, y, z]);
   }
 
-  const accept = (x: number, y: number, z: number): boolean => {
-    if (fill.surfaceMode) {
-      // Surface mode: keep points near the mesh (within ~spacing of a triangle).
-      // Approximate: ray-cast inward from outside the bbox; keep if very close.
-      // Cheap heuristic — inside-test instead, and keep boundary points using
-      // a tiny offset test. For v1, just keep all interior points and call it.
-      return host.bvh.containsPoint({ x, y, z });
-    }
-    return host.bvh.containsPoint({ x, y, z });
-  };
+  const accept = (x: number, y: number, z: number) =>
+    host.bvh.containsPoint({ x, y, z });
 
   const s = fill.dotSize;
   for (const [x, y, z] of candidates) {
@@ -279,7 +433,9 @@ function contour(fill: FillConfig, host: FillHost): ln.Paths {
     try {
       const slicePaths = plane.intersectMesh(mesh);
       for (const path of slicePaths) result.push(path);
-    } catch { /* skip bad slices */ }
+    } catch {
+      /* skip bad slices */
+    }
   }
   return result;
 }
@@ -309,7 +465,8 @@ export class FillShape {
   }
 
   contains(_v: ln.Vector, _f: number): boolean {
-    void _v; void _f;
+    void _v;
+    void _f;
     return false; // Fills don't occlude other shapes
   }
 

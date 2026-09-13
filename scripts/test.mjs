@@ -6,16 +6,41 @@ import { spawnSync } from 'node:child_process';
 const output = mkdtempSync(resolve('node_modules/.audit-test-'));
 try {
   writeFileSync(`${output}/package.json`, '{"type":"commonjs"}');
-  const compiled = spawnSync(process.execPath, [
-    'node_modules/typescript/bin/tsc', 'src/lib/render.ts', 'src/lib/plotter-optimize.ts',
-    '--outDir', output, '--module', 'commonjs', '--target', 'ES2022',
-    '--esModuleInterop', '--skipLibCheck', '--ignoreConfig',
-  ], { stdio: 'inherit' });
+  const compiled = spawnSync(
+    process.execPath,
+    [
+      'node_modules/typescript/bin/tsc',
+      'src/lib/render.ts',
+      'src/lib/plotter-optimize.ts',
+      'src/lib/scene-file.ts',
+      'src/lib/persistence.ts',
+      'src/lib/store.ts',
+      'src/lib/latest-render.ts',
+      'src/lib/plot-output.ts',
+      'src/lib/svg-parse.ts',
+      'src/types/flatten-svg.d.ts',
+      '--outDir',
+      output,
+      '--module',
+      'commonjs',
+      '--target',
+      'ES2022',
+      '--esModuleInterop',
+      '--skipLibCheck',
+      '--ignoreConfig',
+    ],
+    { stdio: 'inherit' },
+  );
   if (compiled.status !== 0) process.exitCode = compiled.status ?? 1;
   else {
-    const tests = spawnSync(process.execPath, ['--test', 'tests/render.test.cjs'], {
-      stdio: 'inherit', env: { ...process.env, AUDIT_TEST_OUTPUT: output },
-    });
+    const tests = spawnSync(
+      process.execPath,
+      ['--test', 'tests/render.test.cjs'],
+      {
+        stdio: 'inherit',
+        env: { ...process.env, AUDIT_TEST_OUTPUT: output },
+      },
+    );
     process.exitCode = tests.status ?? 1;
   }
 } finally {

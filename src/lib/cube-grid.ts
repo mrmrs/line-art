@@ -1,5 +1,6 @@
 import * as ln from '@lnjs/core';
 import { mulberry32 } from './random';
+import { compileExpression } from './expression';
 import { createNoise3D } from 'simplex-noise';
 import type { CubeGridParams } from './types';
 
@@ -16,7 +17,10 @@ import type { CubeGridParams } from './types';
 // simplex-noise is faster and has no axis-aligned artifacts vs the previous
 // value-noise. Each seed gets its own simplex instance, cached.
 
-const noiseCache = new Map<number, (x: number, y: number, z: number) => number>();
+const noiseCache = new Map<
+  number,
+  (x: number, y: number, z: number) => number
+>();
 function getNoise(seed: number) {
   let fn = noiseCache.get(seed);
   if (fn) return fn;
@@ -28,27 +32,38 @@ function getNoise(seed: number) {
 
 // Compile each expression once, including invalid expressions while editing.
 // Keep this bounded so changing formulas cannot grow a worker indefinitely.
-const expressionCache = new Map<string, (...args: number[]) => number | boolean>();
+const expressionCache = new Map<
+  string,
+  (...args: number[]) => number | boolean
+>();
 function getExpression(expression: string, presence: boolean) {
   const key = `${presence}:${expression}`;
   let fn = expressionCache.get(key);
   if (fn) return fn;
   try {
-    fn = new Function(
-      'x', 'y', 'z', 'ix', 'iy', 'iz', 'nx', 'ny', 'nz', 'size',
-      presence ? `return !!(${expression})` : `return ${expression}`,
-    ) as (...args: number[]) => number | boolean;
+    const names = ['x', 'y', 'z', 'ix', 'iy', 'iz', 'nx', 'ny', 'nz', 'size'];
+    const evaluate = compileExpression(expression, names);
+    fn = (...args) =>
+      evaluate(
+        Object.fromEntries(names.map((name, i) => [name, args[i] ?? 0])),
+      );
   } catch {
-    fn = () => presence ? true : 1;
+    fn = () => (presence ? true : 1);
   }
-  if (expressionCache.size >= 64) expressionCache.delete(expressionCache.keys().next().value!);
+  if (expressionCache.size >= 64)
+    expressionCache.delete(expressionCache.keys().next().value!);
   expressionCache.set(key, fn);
   return fn;
 }
 
 // Returns value in [0, 1] for compatibility with callers expecting unsigned noise.
 // simplex-noise returns [-1, 1] so we remap.
-export function noise3d(x: number, y: number, z: number, seed: number = 0): number {
+export function noise3d(
+  x: number,
+  y: number,
+  z: number,
+  seed: number = 0,
+): number {
   const n = getNoise(seed);
   return (n(x, y, z) + 1) * 0.5;
 }
@@ -63,14 +78,22 @@ function hashInt(x: number, y: number, z: number, seed: number): number {
 }
 
 // Multi-octave fractal noise
-export function fbm(x: number, y: number, z: number, seed: number, octaves: number = 3): number {
+export function fbm(
+  x: number,
+  y: number,
+  z: number,
+  seed: number,
+  octaves: number = 3,
+): number {
   let value = 0;
   let amplitude = 1;
   let frequency = 1;
   let maxValue = 0;
 
   for (let i = 0; i < octaves; i++) {
-    value += amplitude * noise3d(x * frequency, y * frequency, z * frequency, seed + i * 1000);
+    value +=
+      amplitude *
+      noise3d(x * frequency, y * frequency, z * frequency, seed + i * 1000);
     maxValue += amplitude;
     amplitude *= 0.5;
     frequency *= 2;
@@ -85,57 +108,57 @@ export function fbm(x: number, y: number, z: number, seed: number, octaves: numb
 // =============================================================================
 
 const FONT_5x7: Record<string, number[]> = {
-  'A': [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
-  'B': [0x1E, 0x11, 0x1E, 0x11, 0x11, 0x11, 0x1E],
-  'C': [0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E],
-  'D': [0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C],
-  'E': [0x1F, 0x10, 0x1E, 0x10, 0x10, 0x10, 0x1F],
-  'F': [0x1F, 0x10, 0x1E, 0x10, 0x10, 0x10, 0x10],
-  'G': [0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0E],
-  'H': [0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
-  'I': [0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E],
-  'J': [0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C],
-  'K': [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
-  'L': [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F],
-  'M': [0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11],
-  'N': [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11],
-  'O': [0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E],
-  'P': [0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10],
-  'Q': [0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D],
-  'R': [0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11],
-  'S': [0x0E, 0x11, 0x10, 0x0E, 0x01, 0x11, 0x0E],
-  'T': [0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
-  'U': [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E],
-  'V': [0x11, 0x11, 0x11, 0x11, 0x0A, 0x0A, 0x04],
-  'W': [0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x11],
-  'X': [0x11, 0x0A, 0x0A, 0x04, 0x0A, 0x0A, 0x11],
-  'Y': [0x11, 0x0A, 0x04, 0x04, 0x04, 0x04, 0x04],
-  'Z': [0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F],
-  '0': [0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E],
-  '1': [0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E],
-  '2': [0x0E, 0x11, 0x01, 0x06, 0x08, 0x10, 0x1F],
-  '3': [0x0E, 0x11, 0x01, 0x06, 0x01, 0x11, 0x0E],
-  '4': [0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02],
-  '5': [0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E],
-  '6': [0x0E, 0x10, 0x1E, 0x11, 0x11, 0x11, 0x0E],
-  '7': [0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
-  '8': [0x0E, 0x11, 0x0E, 0x11, 0x11, 0x11, 0x0E],
-  '9': [0x0E, 0x11, 0x11, 0x0F, 0x01, 0x01, 0x0E],
+  A: [0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+  B: [0x1e, 0x11, 0x1e, 0x11, 0x11, 0x11, 0x1e],
+  C: [0x0e, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0e],
+  D: [0x1c, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1c],
+  E: [0x1f, 0x10, 0x1e, 0x10, 0x10, 0x10, 0x1f],
+  F: [0x1f, 0x10, 0x1e, 0x10, 0x10, 0x10, 0x10],
+  G: [0x0e, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0e],
+  H: [0x11, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+  I: [0x0e, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0e],
+  J: [0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0c],
+  K: [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
+  L: [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1f],
+  M: [0x11, 0x1b, 0x15, 0x15, 0x11, 0x11, 0x11],
+  N: [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11],
+  O: [0x0e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+  P: [0x1e, 0x11, 0x11, 0x1e, 0x10, 0x10, 0x10],
+  Q: [0x0e, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0d],
+  R: [0x1e, 0x11, 0x11, 0x1e, 0x14, 0x12, 0x11],
+  S: [0x0e, 0x11, 0x10, 0x0e, 0x01, 0x11, 0x0e],
+  T: [0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
+  U: [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+  V: [0x11, 0x11, 0x11, 0x11, 0x0a, 0x0a, 0x04],
+  W: [0x11, 0x11, 0x11, 0x15, 0x15, 0x1b, 0x11],
+  X: [0x11, 0x0a, 0x0a, 0x04, 0x0a, 0x0a, 0x11],
+  Y: [0x11, 0x0a, 0x04, 0x04, 0x04, 0x04, 0x04],
+  Z: [0x1f, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1f],
+  '0': [0x0e, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0e],
+  '1': [0x04, 0x0c, 0x04, 0x04, 0x04, 0x04, 0x0e],
+  '2': [0x0e, 0x11, 0x01, 0x06, 0x08, 0x10, 0x1f],
+  '3': [0x0e, 0x11, 0x01, 0x06, 0x01, 0x11, 0x0e],
+  '4': [0x02, 0x06, 0x0a, 0x12, 0x1f, 0x02, 0x02],
+  '5': [0x1f, 0x10, 0x1e, 0x01, 0x01, 0x11, 0x0e],
+  '6': [0x0e, 0x10, 0x1e, 0x11, 0x11, 0x11, 0x0e],
+  '7': [0x1f, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
+  '8': [0x0e, 0x11, 0x0e, 0x11, 0x11, 0x11, 0x0e],
+  '9': [0x0e, 0x11, 0x11, 0x0f, 0x01, 0x01, 0x0e],
   ' ': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
   '!': [0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04],
   '.': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04],
-  '-': [0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00],
-  '+': [0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00],
-  '#': [0x0A, 0x1F, 0x0A, 0x0A, 0x1F, 0x0A, 0x00],
-  '?': [0x0E, 0x11, 0x01, 0x02, 0x04, 0x00, 0x04],
+  '-': [0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00],
+  '+': [0x00, 0x04, 0x04, 0x1f, 0x04, 0x04, 0x00],
+  '#': [0x0a, 0x1f, 0x0a, 0x0a, 0x1f, 0x0a, 0x00],
+  '?': [0x0e, 0x11, 0x01, 0x02, 0x04, 0x00, 0x04],
   '/': [0x01, 0x01, 0x02, 0x04, 0x08, 0x10, 0x10],
   ':': [0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00],
   ',': [0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08],
-  '\'': [0x04, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00],
+  "'": [0x04, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00],
   '<': [0x01, 0x02, 0x04, 0x08, 0x04, 0x02, 0x01],
   '>': [0x10, 0x08, 0x04, 0x02, 0x04, 0x08, 0x10],
-  '=': [0x00, 0x00, 0x1F, 0x00, 0x1F, 0x00, 0x00],
-  '*': [0x04, 0x15, 0x0E, 0x1F, 0x0E, 0x15, 0x04],
+  '=': [0x00, 0x00, 0x1f, 0x00, 0x1f, 0x00, 0x00],
+  '*': [0x04, 0x15, 0x0e, 0x1f, 0x0e, 0x15, 0x04],
   '(': [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
   ')': [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
 };
@@ -157,10 +180,18 @@ function fontPixelSet(char: string, col: number, row: number): boolean {
 // --- Size computation ---
 
 interface CellContext {
-  x: number; y: number; z: number;
-  ix: number; iy: number; iz: number;
-  nx: number; ny: number; nz: number;
-  maxX: number; maxY: number; maxZ: number;
+  x: number;
+  y: number;
+  z: number;
+  ix: number;
+  iy: number;
+  iz: number;
+  nx: number;
+  ny: number;
+  nz: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
 }
 
 function computeSize(ctx: CellContext, params: CubeGridParams): number {
@@ -254,9 +285,25 @@ function computeSize(ctx: CellContext, params: CubeGridParams): number {
     case 'expression':
       try {
         const fn = getExpression(params.sizeExpression, false);
-        t = Math.max(0, Math.min(1, Number(fn(
-          ctx.x, ctx.y, ctx.z, ctx.ix, ctx.iy, ctx.iz, ctx.nx, ctx.ny, ctx.nz,
-        ))));
+        t = Math.max(
+          0,
+          Math.min(
+            1,
+            Number(
+              fn(
+                ctx.x,
+                ctx.y,
+                ctx.z,
+                ctx.ix,
+                ctx.iy,
+                ctx.iz,
+                ctx.nx,
+                ctx.ny,
+                ctx.nz,
+              ),
+            ),
+          ),
+        );
       } catch {
         t = 1;
       }
@@ -271,13 +318,21 @@ function computeSize(ctx: CellContext, params: CubeGridParams): number {
 
 // --- Presence computation ---
 
-function computePresence(ctx: CellContext, size: number, params: CubeGridParams, precomputed: Uint8Array | null): boolean {
+function computePresence(
+  ctx: CellContext,
+  size: number,
+  params: CubeGridParams,
+  precomputed: Uint8Array | null,
+): boolean {
   switch (params.presenceMethod) {
     case 'all':
       return true;
 
     case 'random':
-      return hashInt(ctx.ix + 7, ctx.iy + 13, ctx.iz + 31, params.noiseSeed + 999) < params.presenceProbability;
+      return (
+        hashInt(ctx.ix + 7, ctx.iy + 13, ctx.iz + 31, params.noiseSeed + 999) <
+        params.presenceProbability
+      );
 
     case 'threshold':
       return size >= params.presenceThreshold;
@@ -297,12 +352,15 @@ function computePresence(ctx: CellContext, size: number, params: CubeGridParams,
     }
 
     case 'noise-mask':
-      return fbm(
-        ctx.x * params.noiseScale * 0.7,
-        ctx.y * params.noiseScale * 0.7,
-        ctx.z * params.noiseScale * 0.7,
-        params.noiseSeed + 500,
-      ) > (1 - params.presenceProbability);
+      return (
+        fbm(
+          ctx.x * params.noiseScale * 0.7,
+          ctx.y * params.noiseScale * 0.7,
+          ctx.z * params.noiseScale * 0.7,
+          params.noiseSeed + 500,
+        ) >
+        1 - params.presenceProbability
+      );
 
     // --- Voxel Shapes ---
 
@@ -316,7 +374,12 @@ function computePresence(ctx: CellContext, size: number, params: CubeGridParams,
       if (!inside) return false;
       if (params.voxelShellOnly) {
         const margin = 1 / Math.max(ctx.maxX, ctx.maxY, 1);
-        return dx > level - margin || dy > level - margin || ctx.iz === 0 || ctx.iz === ctx.maxZ;
+        return (
+          dx > level - margin ||
+          dy > level - margin ||
+          ctx.iz === 0 ||
+          ctx.iz === ctx.maxZ
+        );
       }
       return true;
     }
@@ -367,7 +430,8 @@ function computePresence(ctx: CellContext, size: number, params: CubeGridParams,
         const innerX = dy < innerWidth && dz < innerWidth;
         const innerY = dx < innerWidth && dz < innerWidth;
         const innerZ = dx < innerWidth && dy < innerWidth;
-        const deepInside = (armX && innerX) || (armY && innerY) || (armZ && innerZ);
+        const deepInside =
+          (armX && innerX) || (armY && innerY) || (armZ && innerZ);
         return !deepInside;
       }
       return true;
@@ -381,7 +445,9 @@ function computePresence(ctx: CellContext, size: number, params: CubeGridParams,
       // Layout: each char is 5 wide + 1 gap = 6 per char, last has no gap
       const totalCharWidth = text.length * 5 + (text.length - 1);
       // Map grid ix to character column
-      const fontCol = Math.round((ctx.ix / Math.max(cx - 1, 1)) * (totalCharWidth - 1));
+      const fontCol = Math.round(
+        (ctx.ix / Math.max(cx - 1, 1)) * (totalCharWidth - 1),
+      );
       // Map grid iz to font row (bottom of grid = bottom of letter, i.e. row 6)
       const fontRow = 6 - Math.round((ctx.iz / Math.max(cz - 1, 1)) * 6);
 
@@ -414,16 +480,30 @@ function computePresence(ctx: CellContext, size: number, params: CubeGridParams,
     case 'heightmap':
     case 'maze': {
       if (!precomputed) return true;
-      const idx = ctx.iz * params.countX * params.countY + ctx.iy * params.countX + ctx.ix;
+      const idx =
+        ctx.iz * params.countX * params.countY +
+        ctx.iy * params.countX +
+        ctx.ix;
       return precomputed[idx] === 1;
     }
 
     case 'expression':
       try {
         const fn = getExpression(params.presenceExpression, true);
-        return Boolean(fn(
-          ctx.x, ctx.y, ctx.z, ctx.ix, ctx.iy, ctx.iz, ctx.nx, ctx.ny, ctx.nz, size,
-        ));
+        return Boolean(
+          fn(
+            ctx.x,
+            ctx.y,
+            ctx.z,
+            ctx.ix,
+            ctx.iy,
+            ctx.iz,
+            ctx.nx,
+            ctx.ny,
+            ctx.nz,
+            size,
+          ),
+        );
       } catch {
         return true;
       }
@@ -445,22 +525,39 @@ function precomputePresence(params: CubeGridParams): Uint8Array | null {
   const cz = params.dimensions === '3d' ? params.countZ : 1;
   const total = cx * cy * cz;
 
-  if (method === 'menger-sponge') return precomputeMenger(params, cx, cy, cz, total);
-  if (method === 'city-skyline') return precomputeCity(params, cx, cy, cz, total);
-  if (method === 'heightmap') return precomputeHeightmap(params, cx, cy, cz, total);
+  if (method === 'menger-sponge')
+    return precomputeMenger(params, cx, cy, cz, total);
+  if (method === 'city-skyline')
+    return precomputeCity(params, cx, cy, cz, total);
+  if (method === 'heightmap')
+    return precomputeHeightmap(params, cx, cy, cz, total);
   if (method === 'maze') return precomputeMaze(params, cx, cy, cz, total);
   return null;
 }
 
 // --- Menger Sponge ---
-function isMengerHole(ix: number, iy: number, iz: number, cx: number, cy: number, cz: number, depth: number, is3d: boolean): boolean {
-  let bx = ix, by = iy, bz = iz;
-  let sx = cx, sy = cy, sz = cz;
+function isMengerHole(
+  ix: number,
+  iy: number,
+  iz: number,
+  cx: number,
+  cy: number,
+  cz: number,
+  depth: number,
+  is3d: boolean,
+): boolean {
+  let bx = ix,
+    by = iy,
+    bz = iz;
+  let sx = cx,
+    sy = cy,
+    sz = cz;
   for (let d = 0; d < depth; d++) {
     const tx = Math.floor((bx * 3) / sx);
     const ty = Math.floor((by * 3) / sy);
     const tz = is3d ? Math.floor((bz * 3) / sz) : 0;
-    const midCount = (tx === 1 ? 1 : 0) + (ty === 1 ? 1 : 0) + (tz === 1 ? 1 : 0);
+    const midCount =
+      (tx === 1 ? 1 : 0) + (ty === 1 ? 1 : 0) + (tz === 1 ? 1 : 0);
     if (midCount >= 2) return true;
     bx = bx % Math.max(1, Math.floor(sx / 3));
     by = by % Math.max(1, Math.floor(sy / 3));
@@ -472,7 +569,13 @@ function isMengerHole(ix: number, iy: number, iz: number, cx: number, cy: number
   return false;
 }
 
-function precomputeMenger(params: CubeGridParams, cx: number, cy: number, cz: number, total: number): Uint8Array {
+function precomputeMenger(
+  params: CubeGridParams,
+  cx: number,
+  cy: number,
+  cz: number,
+  total: number,
+): Uint8Array {
   const grid = new Uint8Array(total);
   const depth = params.mengerDepth ?? 2;
   const is3d = params.dimensions === '3d';
@@ -492,7 +595,14 @@ function precomputeMenger(params: CubeGridParams, cx: number, cy: number, cz: nu
   // Shell mode: only keep surface cells (face or adjacent to hole/edge)
   if (shell) {
     const shell_grid = new Uint8Array(total);
-    const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    const dirs = [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 1, 0],
+      [0, -1, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+    ];
     for (let iz = 0; iz < cz; iz++) {
       for (let iy = 0; iy < cy; iy++) {
         for (let ix = 0; ix < cx; ix++) {
@@ -503,9 +613,24 @@ function precomputeMenger(params: CubeGridParams, cx: number, cy: number, cz: nu
           if (!exposed && is3d) exposed = iz === 0 || iz === cz - 1;
           if (!exposed) {
             for (const [dx, dy, dz] of dirs) {
-              const nx = ix + dx, ny = iy + dy, nz = iz + dz;
-              if (nx < 0 || nx >= cx || ny < 0 || ny >= cy || nz < 0 || nz >= cz) { exposed = true; break; }
-              if (grid[nz * cx * cy + ny * cx + nx] === 0) { exposed = true; break; }
+              const nx = ix + dx,
+                ny = iy + dy,
+                nz = iz + dz;
+              if (
+                nx < 0 ||
+                nx >= cx ||
+                ny < 0 ||
+                ny >= cy ||
+                nz < 0 ||
+                nz >= cz
+              ) {
+                exposed = true;
+                break;
+              }
+              if (grid[nz * cx * cy + ny * cx + nx] === 0) {
+                exposed = true;
+                break;
+              }
             }
           }
           if (exposed) shell_grid[idx] = 1;
@@ -519,7 +644,13 @@ function precomputeMenger(params: CubeGridParams, cx: number, cy: number, cz: nu
 }
 
 // --- City Skyline ---
-function precomputeCity(params: CubeGridParams, cx: number, cy: number, cz: number, total: number): Uint8Array {
+function precomputeCity(
+  params: CubeGridParams,
+  cx: number,
+  cy: number,
+  cz: number,
+  total: number,
+): Uint8Array {
   const grid = new Uint8Array(total);
   const seed = params.citySeed ?? 42;
   const minH = params.cityMinHeight ?? 1;
@@ -539,7 +670,13 @@ function precomputeCity(params: CubeGridParams, cx: number, cy: number, cz: numb
 }
 
 // --- Heightmap Terrain ---
-function precomputeHeightmap(params: CubeGridParams, cx: number, cy: number, cz: number, total: number): Uint8Array {
+function precomputeHeightmap(
+  params: CubeGridParams,
+  cx: number,
+  cy: number,
+  cz: number,
+  total: number,
+): Uint8Array {
   const grid = new Uint8Array(total);
   const seed = params.heightmapSeed ?? 42;
   const scale = params.heightmapScale ?? 0.5;
@@ -558,7 +695,13 @@ function precomputeHeightmap(params: CubeGridParams, cx: number, cy: number, cz:
 }
 
 // --- Maze ---
-function precomputeMaze(params: CubeGridParams, cx: number, cy: number, cz: number, total: number): Uint8Array {
+function precomputeMaze(
+  params: CubeGridParams,
+  cx: number,
+  cy: number,
+  cz: number,
+  total: number,
+): Uint8Array {
   const grid = new Uint8Array(total); // 0 = passage, will set 1 = wall
 
   const seed = params.mazeSeed ?? 42;
@@ -574,11 +717,15 @@ function precomputeMaze(params: CubeGridParams, cx: number, cy: number, cz: numb
   const parent = new Int32Array(totalCells);
   for (let i = 0; i < totalCells; i++) parent[i] = i;
   const find = (a: number): number => {
-    while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+    while (parent[a] !== a) {
+      parent[a] = parent[parent[a]];
+      a = parent[a];
+    }
     return a;
   };
   const union = (a: number, b: number): boolean => {
-    const ra = find(a), rb = find(b);
+    const ra = find(a),
+      rb = find(b);
     if (ra === rb) return false;
     parent[ra] = rb;
     return true;
@@ -594,15 +741,17 @@ function precomputeMaze(params: CubeGridParams, cx: number, cy: number, cz: numb
   }
   for (let i = walls.length - 1; i > 0; i--) {
     const j = Math.floor(hashInt(i, seed, 0, 12345) * (i + 1));
-    const tmp = walls[i]; walls[i] = walls[j]; walls[j] = tmp;
+    const tmp = walls[i];
+    walls[i] = walls[j];
+    walls[j] = tmp;
   }
 
   // Open walls via spanning tree
   const openH = new Set<number>(); // col | (row << 10)
   const openV = new Set<number>();
   for (const w of walls) {
-    const c = w & 0x3FF;
-    const r = (w >> 10) & 0x3FF;
+    const c = w & 0x3ff;
+    const r = (w >> 10) & 0x3ff;
     const d = (w >> 20) & 1;
     const cellA = r * mazeCols + c;
     const cellB = d === 0 ? cellA + 1 : cellA + mazeCols;
@@ -617,17 +766,26 @@ function precomputeMaze(params: CubeGridParams, cx: number, cy: number, cz: numb
   for (let ly = 0; ly < cy; ly++) {
     for (let lx = 0; lx < cx; lx++) {
       // Border walls
-      if (lx < wallW || ly < wallW) { mazeSlice[ly * cx + lx] = 1; continue; }
+      if (lx < wallW || ly < wallW) {
+        mazeSlice[ly * cx + lx] = 1;
+        continue;
+      }
 
       const cellCol = Math.floor((lx - wallW) / stride);
       const cellRow = Math.floor((ly - wallW) / stride);
-      if (cellCol >= mazeCols || cellRow >= mazeRows) { mazeSlice[ly * cx + lx] = 1; continue; }
+      if (cellCol >= mazeCols || cellRow >= mazeRows) {
+        mazeSlice[ly * cx + lx] = 1;
+        continue;
+      }
 
       const offX = lx - wallW - cellCol * stride;
       const offY = ly - wallW - cellRow * stride;
 
       // Inside a cell = passage
-      if (offX < cellW && offY < cellW) { mazeSlice[ly * cx + lx] = 0; continue; }
+      if (offX < cellW && offY < cellW) {
+        mazeSlice[ly * cx + lx] = 0;
+        continue;
+      }
 
       // Vertical wall strip (right of cell)
       if (offX >= cellW && offY < cellW) {
@@ -688,9 +846,15 @@ export function generateCubeGrid(params: CubeGridParams): ln.Cube[] {
         const nz = cz > 1 ? iz / (cz - 1) : 0.5;
 
         const ctx: CellContext = {
-          x, y, z,
-          ix, iy, iz,
-          nx, ny, nz,
+          x,
+          y,
+          z,
+          ix,
+          iy,
+          iz,
+          nx,
+          ny,
+          nz,
           maxX: cx - 1,
           maxY: cy - 1,
           maxZ: cz - 1,

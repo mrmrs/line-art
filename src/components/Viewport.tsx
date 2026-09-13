@@ -61,7 +61,9 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   const [cssScale, setCssScale] = useState(1);
   const targetZoomRef = useRef(camera.zoom ?? 1);
   const renderedZoomRef = useRef(camera.zoom ?? 1);
-  const zoomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const zoomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   // Keep target zoom in sync with external changes (e.g. from Properties panel)
   useEffect(() => {
@@ -72,14 +74,15 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   }, [camera.zoom]);
 
   // --- Worker render ---
-  const { svg, rendering, renderTimeMs, pathCount } = useWorkerRender(
-    nodes,
-    camera,
-    size.width,
-    size.height,
-    renderSettings,
-    isDragging,
-  );
+  const { svg, rendering, renderTimeMs, pathCount, error, cancel, retry } =
+    useWorkerRender(
+      nodes,
+      camera,
+      size.width,
+      size.height,
+      renderSettings,
+      isDragging,
+    );
 
   // When new SVG arrives from worker, reset CSS zoom since render used current zoom
   const prevSvgRef = useRef('');
@@ -112,7 +115,10 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
 
       // Scroll up = zoom in (increase zoom), scroll down = zoom out
       const factor = e.deltaY > 0 ? 0.92 : 1.08;
-      targetZoomRef.current = Math.max(0.01, Math.min(50, targetZoomRef.current * factor));
+      targetZoomRef.current = Math.max(
+        0.01,
+        Math.min(50, targetZoomRef.current * factor),
+      );
 
       // Instant CSS scale feedback: ratio of target to what's currently rendered
       const rendered = renderedZoomRef.current;
@@ -121,12 +127,17 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
       // Debounce the actual camera update to batch rapid scrolls
       if (zoomTimer.current) clearTimeout(zoomTimer.current);
       zoomTimer.current = setTimeout(() => {
-        updateCameraRef.current(cameraIndexRef.current, { zoom: targetZoomRef.current });
+        updateCameraRef.current(cameraIndexRef.current, {
+          zoom: targetZoomRef.current,
+        });
       }, 60);
     };
 
     el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      clearTimeout(zoomTimer.current);
+    };
   }, []);
 
   const currentZoom = camera.zoom ?? 1;
@@ -165,7 +176,22 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
 
       {/* Stats */}
       <div className="viewport-stats">
-        {rendering && <span className="viewport-rendering">rendering</span>}
+        {rendering && (
+          <>
+            <span className="viewport-rendering">rendering</span>
+            <button className="btn btn-xs" onClick={cancel}>
+              Cancel
+            </button>
+          </>
+        )}
+        {error && (
+          <span role="alert">
+            {error}{' '}
+            <button className="btn btn-xs" onClick={retry}>
+              Retry
+            </button>
+          </span>
+        )}
         {!rendering && (
           <span>
             {pathCount} paths &middot; {renderTimeMs.toFixed(0)}ms

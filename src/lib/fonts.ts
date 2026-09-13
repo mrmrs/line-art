@@ -1,5 +1,6 @@
 import opentype from 'opentype.js';
 import { parseSvgString } from './svg-parse';
+import { LIMITS } from './limits';
 
 // =============================================================================
 // Font registry — manages opentype.js Font instances available for
@@ -11,17 +12,22 @@ export interface FontEntry {
   id: string;
   name: string;
   source: 'bundled' | 'uploaded';
-  url?: string;          // for bundled
-  font?: opentype.Font;  // populated lazily
+  url?: string; // for bundled
+  font?: opentype.Font; // populated lazily
   loading?: Promise<opentype.Font>;
 }
 
 // Bundled fonts — files live in /public/fonts/. Add more by dropping a TTF
 // and adding a line below.
 const BUNDLED: Omit<FontEntry, 'font' | 'loading'>[] = [
-  { id: 'inter',            name: 'Inter',            source: 'bundled', url: '/fonts/Inter.ttf' },
-  { id: 'geist',            name: 'Geist',            source: 'bundled', url: '/fonts/Geist.ttf' },
-  { id: 'instrument-serif', name: 'Instrument Serif', source: 'bundled', url: '/fonts/InstrumentSerif.ttf' },
+  { id: 'inter', name: 'Inter', source: 'bundled', url: '/fonts/Inter.ttf' },
+  { id: 'geist', name: 'Geist', source: 'bundled', url: '/fonts/Geist.ttf' },
+  {
+    id: 'instrument-serif',
+    name: 'Instrument Serif',
+    source: 'bundled',
+    url: '/fonts/InstrumentSerif.ttf',
+  },
 ];
 
 const registry = new Map<string, FontEntry>();
@@ -41,10 +47,23 @@ export async function loadFont(id: string): Promise<opentype.Font> {
   if (entry.font) return entry.font;
   if (entry.loading) return entry.loading;
   if (!entry.url) throw new Error(`Font ${id} has no URL and is not uploaded`);
-  entry.loading = opentype.load(entry.url).then((font) => {
-    entry.font = font;
-    return font;
-  });
+  entry.loading = fetch(entry.url)
+    .then(async (response) => {
+      if (!response.ok)
+        throw new Error(`Font download failed: ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > LIMITS.inputBytes)
+        throw new Error('Font exceeds input size limit');
+      return opentype.parse(buffer);
+    })
+    .then((font) => {
+      entry.font = font;
+      return font;
+    })
+    .catch((error) => {
+      entry.loading = undefined;
+      throw error;
+    });
   return entry.loading;
 }
 
@@ -76,8 +95,17 @@ export function textToPolylines(
     lineHeight?: number;
     align?: 'left' | 'center' | 'right';
   },
-): { polylines: number[][][]; bounds: { minX: number; minY: number; maxX: number; maxY: number } } {
-  const { fontSize, letterSpacing = 0, lineHeight = 1.2, align = 'center' } = options;
+): {
+  polylines: number[][][];
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+} {
+  const {
+    fontSize,
+    letterSpacing = 0,
+    lineHeight = 1.2,
+    align = 'center',
+  } = options;
+  if (text.length > 2000) throw new Error('Text exceeds 2000 characters');
 
   // For multi-line text: split on \n and render each line via getPath with y offset.
   const lines = text.split(/\r?\n/);

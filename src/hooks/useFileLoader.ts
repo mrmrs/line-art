@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import { useSceneStore } from '../lib/store';
+import { useSceneStore, reportError } from '../lib/store';
+import { LIMITS } from '../lib/limits';
 import { DEFAULT_TRANSFORM, DEFAULT_SVG_EXTRUDE_PARAMS } from '../lib/types';
 import type { MeshParams, SvgExtrudeParams } from '../lib/types';
-import { parseSvgString } from '../lib/svg-parse';
 
 // =============================================================================
 // Hook for loading OBJ/STL/SVG files into the scene
@@ -13,6 +13,10 @@ type LoadedNode =
   | { kind: 'svg-extrude'; name: string; params: SvgExtrudeParams };
 
 async function readFile(file: File): Promise<LoadedNode | null> {
+  if (file.size > LIMITS.inputBytes)
+    throw new Error(
+      `File exceeds ${LIMITS.inputBytes / 1000000} MB input limit`,
+    );
   const ext = file.name.split('.').pop()?.toLowerCase();
 
   if (ext === 'obj') {
@@ -40,12 +44,15 @@ async function readFile(file: File): Promise<LoadedNode | null> {
 
   if (ext === 'svg') {
     const text = await file.text();
-    const parsed = parseSvgString(text);
+    const { parseSvgString } = await import('../lib/svg-parse');
+    const parsed = parseSvgString(text, 0.1, 'lines');
     return {
       kind: 'svg-extrude',
       name: file.name,
       params: {
         ...DEFAULT_SVG_EXTRUDE_PARAMS,
+        importMode: 'lines',
+        sourceSvg: text,
         polylines: parsed.polylines,
         bounds: parsed.bounds,
         filename: file.name,
@@ -62,12 +69,20 @@ export function useFileLoader() {
   return useCallback(
     async (files: FileList | File[]) => {
       for (const file of Array.from(files)) {
-        const result = await readFile(file);
+        let result: LoadedNode | null;
+        try {
+          result = await readFile(file);
+        } catch (error) {
+          reportError(error);
+          continue;
+        }
         if (!result) continue;
         if (result.kind === 'mesh') {
           addNode('mesh', result.name, result.params, { ...DEFAULT_TRANSFORM });
         } else if (result.kind === 'svg-extrude') {
-          addNode('svg-extrude', result.name, result.params, { ...DEFAULT_TRANSFORM });
+          addNode('svg-extrude', result.name, result.params, {
+            ...DEFAULT_TRANSFORM,
+          });
         }
       }
     },

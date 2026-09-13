@@ -139,8 +139,8 @@ export interface CubeGridParams {
   sizeExpression: string;
 
   // Extra size params
-  stepCount: number;                 // for 'step': number of quantization levels
-  gradientAxis: 'x' | 'y' | 'z';   // for 'gradient': axis direction
+  stepCount: number; // for 'step': number of quantization levels
+  gradientAxis: 'x' | 'y' | 'z'; // for 'gradient': axis direction
 
   // Presence
   presenceMethod: GridPresenceMethod;
@@ -149,24 +149,24 @@ export interface CubeGridParams {
   presenceExpression: string;
 
   // Voxel shape params
-  voxelLetter: string;       // character(s) for 'voxel-letter'
-  voxelShellOnly: boolean;   // hollow shapes (surface only)
+  voxelLetter: string; // character(s) for 'voxel-letter'
+  voxelShellOnly: boolean; // hollow shapes (surface only)
 
   // Fractal params
-  mengerDepth: number;       // Menger sponge recursion depth (1-4)
+  mengerDepth: number; // Menger sponge recursion depth (1-4)
 
   // City params
-  cityMinHeight: number;     // min building height in grid units
-  cityMaxHeight: number;     // max building height in grid units
-  citySeed: number;          // seed for building placement
+  cityMinHeight: number; // min building height in grid units
+  cityMaxHeight: number; // max building height in grid units
+  citySeed: number; // seed for building placement
 
   // Heightmap params
-  heightmapScale: number;    // noise scale for terrain
-  heightmapSeed: number;     // noise seed for terrain
-  heightmapOctaves: number;  // fractal octaves
+  heightmapScale: number; // noise scale for terrain
+  heightmapSeed: number; // noise seed for terrain
+  heightmapOctaves: number; // fractal octaves
 
   // Maze params
-  mazeSeed: number;          // seed for maze generation
+  mazeSeed: number; // seed for maze generation
   mazeWallThickness: number; // 1 = thin walls, 2+ = thick
 }
 
@@ -225,12 +225,12 @@ export interface LineGridParams {
   lengthMax: number;
   lengthSeed: number;
   lengthNoiseScale: number;
-  lengthSineFreq: number;   // for sine
+  lengthSineFreq: number; // for sine
   lengthGradientAxis: 'x' | 'y'; // which grid axis the gradient follows
 
   // Gap segmentation — splits each line into two with a gap
   segmented: boolean;
-  gapSize: number;           // world-space gap width
+  gapSize: number; // world-space gap width
   gapMethod: 'center' | 'noise' | 'random' | 'sine';
   gapSeed: number;
   gapNoiseScale: number;
@@ -277,20 +277,20 @@ export interface PlaneGridParams {
   spacing: number;
 
   // Base plane dimensions (the two axes perpendicular to stackAxis)
-  planeWidth: number;     // dimension along first perpendicular axis
-  planeHeight: number;    // dimension along second perpendicular axis
-  thickness: number;      // how thick each "plane" is (thin = plotter effect)
+  planeWidth: number; // dimension along first perpendicular axis
+  planeHeight: number; // dimension along second perpendicular axis
+  thickness: number; // how thick each "plane" is (thin = plotter effect)
 
   // Size variation — modulates planeWidth and planeHeight per-plane
   sizeMethod: PlaneSizeMethod;
-  sizeMin: number;        // multiplier 0..1 (1 = full size)
+  sizeMin: number; // multiplier 0..1 (1 = full size)
   sizeMax: number;
   noiseSeed: number;
   noiseScale: number;
   sineFreq: number;
 
   // Optional: vary width and height independently (anisotropic noise)
-  anisotropic: boolean;   // when true, W and H get separate noise values
+  anisotropic: boolean; // when true, W and H get separate noise values
 }
 
 export const DEFAULT_PLANE_GRID_PARAMS: PlaneGridParams = {
@@ -325,9 +325,9 @@ export interface AutomataGridParams {
   generations: number;
   spacing: number;
   cubeSize: number;
-  rule: string;             // B/S notation, e.g. "B3/S23" for Conway
+  rule: string; // B/S notation, e.g. "B3/S23" for Conway
   initialPattern: AutomataPattern;
-  randomDensity: number;    // 0-1, for random initial state
+  randomDensity: number; // 0-1, for random initial state
   seed: number;
   wrapEdges: boolean;
 }
@@ -352,15 +352,15 @@ export const DEFAULT_AUTOMATA_GRID_PARAMS: AutomataGridParams = {
 export interface SvgExtrudeParams {
   // Source flattened polylines in SVG coordinate space (Y-down). One ring
   // per outer polygon or hole. Winding is determined at triangulation time.
-  polylines: number[][][];           // [polyline][point][x|y]
+  polylines: number[][][]; // [polyline][point][x|y]
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   filename: string;
+  importMode?: 'regions' | 'lines';
+  sourceSvg?: string;
 
   // Extrude parameters
-  extrudeDepth: number;              // total Z depth
-  bevelDepth: number;                // 0 = no bevel
-  bevelSegments: number;             // # of rings
-  fitToSize: number;                 // target size of largest dimension in world units
+  extrudeDepth: number; // total Z depth
+  fitToSize: number; // target size of largest dimension in world units
   centerOnOrigin: boolean;
 }
 
@@ -369,8 +369,6 @@ export const DEFAULT_SVG_EXTRUDE_PARAMS: SvgExtrudeParams = {
   bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 },
   filename: 'untitled.svg',
   extrudeDepth: 0.6,
-  bevelDepth: 0,
-  bevelSegments: 2,
   fitToSize: 2,
   centerOnOrigin: true,
 };
@@ -383,14 +381,12 @@ export type TextAlign = 'left' | 'center' | 'right';
 
 export interface TextExtrudeParams {
   text: string;
-  fontId: string;                    // key in font registry
-  fontSize: number;                  // in world units (rough — we fit to fitToSize)
+  fontId: string; // key in font registry
+  fontSize: number; // in world units (rough — we fit to fitToSize)
   letterSpacing: number;
   lineHeight: number;
   align: TextAlign;
   extrudeDepth: number;
-  bevelDepth: number;
-  bevelSegments: number;
   fitToSize: number;
   centerOnOrigin: boolean;
 
@@ -407,8 +403,6 @@ export const DEFAULT_TEXT_EXTRUDE_PARAMS: TextExtrudeParams = {
   lineHeight: 1.2,
   align: 'center',
   extrudeDepth: 0.6,
-  bevelDepth: 0,
-  bevelSegments: 2,
   fitToSize: 3,
   centerOnOrigin: true,
 };
@@ -424,23 +418,23 @@ export interface FillConfig {
   type: FillType;
   enabled: boolean;
   // Common
-  spacing: number;                   // world units between lines / dots
-  pen: number;                       // 1..N — for multi-pen plotter output
+  spacing: number; // world units between lines / dots
+  pen: number; // 1..N — for multi-pen plotter output
 
   // cross-hatch / contour
   axis: 'x' | 'y' | 'z';
   crossHatchAxes: ('x' | 'y' | 'z')[]; // for 3D cross-hatch; subset of {x,y,z}
 
   // surface-hatch
-  angleDeg: number;                  // in-plane rotation per face
+  angleDeg: number; // in-plane rotation per face
 
   // stipple
-  density: number;                   // points per world unit (approx Poisson radius = 1/sqrt(density))
+  density: number; // points per world unit (approx Poisson radius = 1/sqrt(density))
   dotSize: number;
-  surfaceMode: boolean;              // true = sample surface; false = volume
+  surfaceMode: boolean; // true = sample surface; false = volume
 
   // contour
-  count: number;                     // # of contour planes
+  count: number; // # of contour planes
 }
 
 export function makeDefaultFill(type: FillType, id: string): FillConfig {
@@ -482,14 +476,12 @@ export interface SlicingConfig {
   enabled: boolean;
   axis: 'x' | 'y' | 'z';
   count: number;
-  gap: number;
 }
 
 export const DEFAULT_SLICING: SlicingConfig = {
   enabled: false,
   axis: 'z',
   count: 10,
-  gap: 0,
 };
 
 // --- Scene Node ---
@@ -503,6 +495,8 @@ export interface SceneNode {
   visible: boolean;
   slicing: SlicingConfig;
   fills?: FillConfig[];
+  pathVisibility?: 'through' | 'occluded';
+  directionLocked?: boolean;
 }
 
 // --- Camera ---

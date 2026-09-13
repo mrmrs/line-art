@@ -1,12 +1,23 @@
-import { useCallback } from 'react';
+import { useCallback, lazy, Suspense } from 'react';
 import { useSceneStore } from '../lib/store';
 import type {
   SceneNode,
-  CubeParams, SphereParams, ConeParams, CylinderParams,
-  FunctionParams, MeshParams, PointCloudParams, BooleanParams,
-  CubeGridParams, LineGridParams, PlaneGridParams, AutomataGridParams,
-  SvgExtrudeParams, TextExtrudeParams,
-  TransformParams, SlicingConfig,
+  CubeParams,
+  SphereParams,
+  ConeParams,
+  CylinderParams,
+  FunctionParams,
+  MeshParams,
+  PointCloudParams,
+  BooleanParams,
+  CubeGridParams,
+  LineGridParams,
+  PlaneGridParams,
+  AutomataGridParams,
+  SvgExtrudeParams,
+  TextExtrudeParams,
+  TransformParams,
+  SlicingConfig,
 } from '../lib/types';
 import { TransformEditor } from './properties/TransformEditor';
 import { SlicingEditor } from './properties/SlicingEditor';
@@ -16,11 +27,22 @@ import { LineGridEditor } from './properties/LineGridEditor';
 import { PlaneGridEditor } from './properties/PlaneGridEditor';
 import { AutomataGridEditor } from './properties/AutomataGridEditor';
 import {
-  CubeEditor, SphereEditor, ConeEditor, CylinderEditor,
-  FunctionEditor, MeshEditor, PointCloudEditor, BooleanEditor,
+  CubeEditor,
+  SphereEditor,
+  ConeEditor,
+  CylinderEditor,
+  FunctionEditor,
+  MeshEditor,
+  PointCloudEditor,
+  BooleanEditor,
 } from './properties/ShapeEditors';
 import { SvgExtrudeEditor } from './properties/SvgExtrudeEditor';
-import { TextExtrudeEditor } from './properties/TextExtrudeEditor';
+const TextExtrudeEditor = lazy(() =>
+  import('./properties/TextExtrudeEditor').then((m) => ({
+    default: m.TextExtrudeEditor,
+  })),
+);
+import { CheckboxInput, SelectInput } from './properties/inputs';
 import { FillEditor } from './properties/FillEditor';
 import { showsSlicing, showsTransform, MESH_LIKE } from './properties/sections';
 
@@ -53,15 +75,20 @@ export function Properties() {
   const node = nodes.find((n) => n.id === selectedId) ?? null;
 
   const onCameraChange = useCallback(
-    (updates: Partial<typeof cameras[number]>) => updateCamera(activeCameraIndex, updates),
+    (updates: Partial<(typeof cameras)[number]>) =>
+      updateCamera(activeCameraIndex, updates),
     [updateCamera, activeCameraIndex],
   );
 
   return (
     <aside className="properties">
-      <CameraControls camera={cameras[activeCameraIndex]} onChange={onCameraChange} />
+      <CameraControls
+        camera={cameras[activeCameraIndex]}
+        onChange={onCameraChange}
+      />
       {node && (
         <NodeProperties
+          key={node.id}
           node={node}
           nodes={nodes}
           updateNode={updateNode}
@@ -75,14 +102,21 @@ export function Properties() {
 }
 
 function NodeProperties({
-  node, nodes,
-  updateNode, updateNodeParams, updateNodeTransform, updateNodeSlicing,
+  node,
+  nodes,
+  updateNode,
+  updateNodeParams,
+  updateNodeTransform,
+  updateNodeSlicing,
 }: {
   node: SceneNode;
   nodes: SceneNode[];
   updateNode: (id: string, updates: Partial<SceneNode>) => void;
   updateNodeParams: (id: string, params: Record<string, unknown>) => void;
-  updateNodeTransform: (id: string, transform: Partial<TransformParams>) => void;
+  updateNodeTransform: (
+    id: string,
+    transform: Partial<TransformParams>,
+  ) => void;
   updateNodeSlicing: (id: string, slicing: Partial<SlicingConfig>) => void;
 }) {
   const id = node.id;
@@ -117,8 +151,34 @@ function NodeProperties({
       )}
 
       <div className="properties-section">
+        <CheckboxInput
+          label="Lock stroke direction"
+          value={node.directionLocked ?? false}
+          onChange={(value) => updateNode(node.id, { directionLocked: value })}
+        />
+        {(node.type === 'line-grid' ||
+          node.type === 'svg-extrude' ||
+          node.slicing.enabled) && (
+          <SelectInput
+            label="Path visibility"
+            value={node.pathVisibility ?? 'through'}
+            options={[
+              { value: 'through', label: 'See-through' },
+              { value: 'occluded', label: 'Hide behind objects' },
+            ]}
+            onChange={(value) =>
+              updateNode(node.id, {
+                pathVisibility: value as 'through' | 'occluded',
+              })
+            }
+          />
+        )}
+      </div>
+      <div className="properties-section">
         <div className="properties-section-title">Shape</div>
-        <ShapeBody node={node} nodes={nodes} onChange={onParams} />
+        <Suspense fallback={<span>Loading editor…</span>}>
+          <ShapeBody node={node} nodes={nodes} onChange={onParams} />
+        </Suspense>
       </div>
 
       {showsSlicing(node) && (
@@ -128,38 +188,107 @@ function NodeProperties({
         </div>
       )}
 
-      {MESH_LIKE.has(node.type) && (
-        <div className="properties-section">
-          <div className="properties-section-title">Fills</div>
-          <FillEditor nodeId={node.id} fills={node.fills ?? []} />
-        </div>
-      )}
+      {MESH_LIKE.has(node.type) &&
+        !(
+          node.type === 'svg-extrude' &&
+          (node.params as SvgExtrudeParams).importMode === 'lines'
+        ) && (
+          <div className="properties-section">
+            <div className="properties-section-title">Fills</div>
+            <FillEditor nodeId={node.id} fills={node.fills ?? []} />
+          </div>
+        )}
     </>
   );
 }
 
 function ShapeBody({
-  node, nodes, onChange,
+  node,
+  nodes,
+  onChange,
 }: {
   node: SceneNode;
   nodes: SceneNode[];
   onChange: (p: Record<string, unknown>) => void;
 }) {
   switch (node.type) {
-    case 'cube':         return <CubeEditor p={node.params as CubeParams} onChange={onChange} />;
-    case 'sphere':       return <SphereEditor p={node.params as SphereParams} onChange={onChange} />;
-    case 'cone':         return <ConeEditor p={node.params as ConeParams} onChange={onChange} />;
-    case 'cylinder':     return <CylinderEditor p={node.params as CylinderParams} onChange={onChange} />;
-    case 'function':     return <FunctionEditor p={node.params as FunctionParams} onChange={onChange} />;
-    case 'mesh':         return <MeshEditor p={node.params as MeshParams} />;
-    case 'point-cloud':  return <PointCloudEditor p={node.params as PointCloudParams} onChange={onChange} />;
-    case 'boolean':      return <BooleanEditor p={node.params as BooleanParams} onChange={onChange} nodes={nodes} currentId={node.id} />;
-    case 'cube-grid':    return <CubeGridEditor params={node.params as CubeGridParams} onChange={onChange} />;
-    case 'line-grid':    return <LineGridEditor params={node.params as LineGridParams} onChange={onChange} />;
-    case 'plane-grid':   return <PlaneGridEditor params={node.params as PlaneGridParams} onChange={onChange} />;
-    case 'automata-grid':return <AutomataGridEditor params={node.params as AutomataGridParams} onChange={onChange} />;
-    case 'svg-extrude':  return <SvgExtrudeEditor params={node.params as SvgExtrudeParams} onChange={onChange} />;
-    case 'text-extrude': return <TextExtrudeEditor params={node.params as TextExtrudeParams} onChange={onChange} />;
-    default:             return <div className="property-row">No editable properties</div>;
+    case 'cube':
+      return <CubeEditor p={node.params as CubeParams} onChange={onChange} />;
+    case 'sphere':
+      return (
+        <SphereEditor p={node.params as SphereParams} onChange={onChange} />
+      );
+    case 'cone':
+      return <ConeEditor p={node.params as ConeParams} onChange={onChange} />;
+    case 'cylinder':
+      return (
+        <CylinderEditor p={node.params as CylinderParams} onChange={onChange} />
+      );
+    case 'function':
+      return (
+        <FunctionEditor p={node.params as FunctionParams} onChange={onChange} />
+      );
+    case 'mesh':
+      return <MeshEditor p={node.params as MeshParams} />;
+    case 'point-cloud':
+      return (
+        <PointCloudEditor
+          p={node.params as PointCloudParams}
+          onChange={onChange}
+        />
+      );
+    case 'boolean':
+      return (
+        <BooleanEditor
+          p={node.params as BooleanParams}
+          onChange={onChange}
+          nodes={nodes}
+          currentId={node.id}
+        />
+      );
+    case 'cube-grid':
+      return (
+        <CubeGridEditor
+          params={node.params as CubeGridParams}
+          onChange={onChange}
+        />
+      );
+    case 'line-grid':
+      return (
+        <LineGridEditor
+          params={node.params as LineGridParams}
+          onChange={onChange}
+        />
+      );
+    case 'plane-grid':
+      return (
+        <PlaneGridEditor
+          params={node.params as PlaneGridParams}
+          onChange={onChange}
+        />
+      );
+    case 'automata-grid':
+      return (
+        <AutomataGridEditor
+          params={node.params as AutomataGridParams}
+          onChange={onChange}
+        />
+      );
+    case 'svg-extrude':
+      return (
+        <SvgExtrudeEditor
+          params={node.params as SvgExtrudeParams}
+          onChange={onChange}
+        />
+      );
+    case 'text-extrude':
+      return (
+        <TextExtrudeEditor
+          params={node.params as TextExtrudeParams}
+          onChange={onChange}
+        />
+      );
+    default:
+      return <div className="property-row">No editable properties</div>;
   }
 }

@@ -1,39 +1,87 @@
-import { useState } from 'react';
-import { useSceneStore } from '../lib/store';
-import { downloadSVG, copySVGToClipboard } from '../lib/export-svg';
-import { renderScenePerPen, multiPenSvg } from '../lib/render';
-import { optimizePathOrder } from '../lib/plotter-optimize';
+import { useRef, useState } from 'react';
+import { useSceneStore, snapshotScene, reportError } from '../lib/store';
+import { serializeScene, parseScene } from '../lib/scene-file';
+import { ExportPanel } from './ExportPanel';
+import { downloadText } from '../lib/export-svg';
 import type { ViewMode } from '../lib/types';
 
 // Paper sizes — pixel dimensions at 96 DPI for the render viewport AND
 // physical dimensions for the exported <svg width/height>. Plotters honor the
 // physical units; viewBox stays in pixel-space so the render coordinates map
 // 1:1 to plot coordinates.
-const PAPER_SIZES: Record<string, {
-  w: number; h: number;       // pixels (render size)
-  physW: string; physH: string; // physical size attributes
-  label: string;
-}> = {
-  square: { w: 1024, h: 1024, physW: '250mm', physH: '250mm', label: 'Square 250mm' },
-  A4:     { w: 794,  h: 1123, physW: '210mm', physH: '297mm', label: 'A4 (210×297mm)' },
-  A4L:    { w: 1123, h: 794,  physW: '297mm', physH: '210mm', label: 'A4 landscape' },
-  A3:     { w: 1123, h: 1587, physW: '297mm', physH: '420mm', label: 'A3 (297×420mm)' },
-  A3L:    { w: 1587, h: 1123, physW: '420mm', physH: '297mm', label: 'A3 landscape' },
-  A2:     { w: 1587, h: 2245, physW: '420mm', physH: '594mm', label: 'A2 (420×594mm)' },
-  letter: { w: 816,  h: 1056, physW: '8.5in', physH: '11in',  label: 'US Letter (8.5×11in)' },
-  tabloid:{ w: 1056, h: 1632, physW: '11in',  physH: '17in',  label: 'Tabloid (11×17in)' },
-  '12x18':{ w: 1152, h: 1728, physW: '12in',  physH: '18in',  label: '12×18 in' },
-};
-
-// Default cycling palette for pens 2+ (pen 1 uses the user's stroke color).
-const PEN_PALETTE: Record<number, string> = {
-  2: '#d8463a',  // red
-  3: '#3aa1d8',  // blue
-  4: '#3ad864',  // green
-  5: '#d8b53a',  // amber
-  6: '#a93ad8',  // violet
-  7: '#3ad8c3',  // cyan
-  8: '#d83a8b',  // pink
+const PAPER_SIZES: Record<
+  string,
+  {
+    w: number;
+    h: number; // pixels (render size)
+    physW: string;
+    physH: string; // physical size attributes
+    label: string;
+  }
+> = {
+  square: {
+    w: 1024,
+    h: 1024,
+    physW: '250mm',
+    physH: '250mm',
+    label: 'Square 250mm',
+  },
+  A4: {
+    w: 794,
+    h: 1123,
+    physW: '210mm',
+    physH: '297mm',
+    label: 'A4 (210×297mm)',
+  },
+  A4L: {
+    w: 1123,
+    h: 794,
+    physW: '297mm',
+    physH: '210mm',
+    label: 'A4 landscape',
+  },
+  A3: {
+    w: 1123,
+    h: 1587,
+    physW: '297mm',
+    physH: '420mm',
+    label: 'A3 (297×420mm)',
+  },
+  A3L: {
+    w: 1587,
+    h: 1123,
+    physW: '420mm',
+    physH: '297mm',
+    label: 'A3 landscape',
+  },
+  A2: {
+    w: 1587,
+    h: 2245,
+    physW: '420mm',
+    physH: '594mm',
+    label: 'A2 (420×594mm)',
+  },
+  letter: {
+    w: 816,
+    h: 1056,
+    physW: '8.5in',
+    physH: '11in',
+    label: 'US Letter (8.5×11in)',
+  },
+  tabloid: {
+    w: 1056,
+    h: 1632,
+    physW: '11in',
+    physH: '17in',
+    label: 'Tabloid (11×17in)',
+  },
+  '12x18': {
+    w: 1152,
+    h: 1728,
+    physW: '12in',
+    physH: '18in',
+    label: '12×18 in',
+  },
 };
 
 // =============================================================================
@@ -50,34 +98,18 @@ const VIEW_MODES: { value: ViewMode; label: string; icon: string }[] = [
 export function Toolbar() {
   const viewMode = useSceneStore((s) => s.viewMode);
   const setViewMode = useSceneStore((s) => s.setViewMode);
-  const nodes = useSceneStore((s) => s.nodes);
-  const cameras = useSceneStore((s) => s.cameras);
-  const activeCameraIndex = useSceneStore((s) => s.activeCameraIndex);
   const renderSettings = useSceneStore((s) => s.renderSettings);
   const updateRenderSettings = useSceneStore((s) => s.updateRenderSettings);
 
-  const [paperSize, setPaperSize] = useState<keyof typeof PAPER_SIZES>('square');
+  const [paperSize, setPaperSize] =
+    useState<keyof typeof PAPER_SIZES>('square');
   const [optimize, setOptimize] = useState(true);
 
-  const buildExportSVG = (): string => {
-    const camera = cameras[activeCameraIndex];
-    const highQuality = { ...renderSettings, step: 0.01 };
-    const { w, h, physW, physH } = PAPER_SIZES[paperSize];
-    const physical = { width: physW, height: physH };
-    const { penGroups } = renderScenePerPen(nodes, camera, w, h, highQuality);
-    const optimized = optimize
-      ? penGroups.map((g) => ({ ...g, paths: optimizePathOrder(g.paths) }))
-      : penGroups;
-    return multiPenSvg(optimized, w, h, highQuality, PEN_PALETTE, physical);
-  };
-
-  const handleExportSVG = () => {
-    downloadSVG(buildExportSVG(), 'plotter-art.svg');
-  };
-
-  const handleCopySVG = async () => {
-    await copySVGToClipboard(buildExportSVG());
-  };
+  const [exportOpen, setExportOpen] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const paper = PAPER_SIZES[paperSize];
+  const mm = (dimension: string) =>
+    parseFloat(dimension) * (dimension.endsWith('in') ? 25.4 : 1);
 
   return (
     <header className="toolbar">
@@ -115,7 +147,9 @@ export function Toolbar() {
             max={5}
             step={0.1}
             onChange={(e) =>
-              updateRenderSettings({ strokeWidth: parseFloat(e.target.value) || 1 })
+              updateRenderSettings({
+                strokeWidth: parseFloat(e.target.value) || 1,
+              })
             }
             style={{ width: 52 }}
           />
@@ -168,11 +202,15 @@ export function Toolbar() {
           <select
             className="input input-sm"
             value={paperSize}
-            onChange={(e) => setPaperSize(e.target.value as keyof typeof PAPER_SIZES)}
+            onChange={(e) =>
+              setPaperSize(e.target.value as keyof typeof PAPER_SIZES)
+            }
             title="Export size"
           >
             {Object.entries(PAPER_SIZES).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
+              <option key={k} value={k}>
+                {v.label}
+              </option>
             ))}
           </select>
           <label className="toolbar-label" style={{ marginLeft: 8 }}>
@@ -203,13 +241,65 @@ export function Toolbar() {
         >
           ↷
         </button>
-        <button className="btn btn-sm" onClick={handleCopySVG} title="Copy SVG to clipboard">
-          Copy SVG
+        <button
+          className="btn btn-sm"
+          onClick={() => {
+            try {
+              downloadText(
+                serializeScene(snapshotScene()),
+                'drawing.lnscene',
+                'application/json',
+              );
+            } catch (error) {
+              reportError(error);
+            }
+          }}
+        >
+          Save scene
         </button>
-        <button className="btn btn-primary btn-sm" onClick={handleExportSVG}>
+        <button
+          className="btn btn-sm"
+          onClick={() => fileInput.current?.click()}
+        >
+          Open scene
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".lnscene,.json"
+          hidden
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            try {
+              if (file.size > 60000000)
+                throw new Error('Scene file exceeds size limit');
+              useSceneStore
+                .getState()
+                .importScene(parseScene(await file.text()));
+            } catch (error) {
+              reportError(error);
+            }
+          }}
+        />
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={() => setExportOpen(true)}
+        >
           Export SVG
         </button>
       </div>
+      {exportOpen && (
+        <ExportPanel
+          width={paper.w}
+          height={paper.h}
+          pageWidthMm={mm(paper.physW)}
+          pageHeightMm={mm(paper.physH)}
+          optimize={optimize}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
     </header>
   );
 }

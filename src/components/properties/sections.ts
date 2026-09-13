@@ -29,7 +29,13 @@ export function showsTransform(node: SceneNode): boolean {
 
 // Shapes that should expose Slicing.
 export function showsSlicing(node: SceneNode): boolean {
-  return MESH_LIKE.has(node.type);
+  return (
+    MESH_LIKE.has(node.type) &&
+    !(
+      node.type === 'svg-extrude' &&
+      (node.params as { importMode?: string }).importMode === 'lines'
+    )
+  );
 }
 
 // Shapes that should expose shape-specific params (everything except types

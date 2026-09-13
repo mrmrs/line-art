@@ -1,5 +1,19 @@
-import type { SceneNode, ScenePreset, CubeGridParams, LineGridParams, PlaneGridParams, AutomataGridParams } from './types';
-import { DEFAULT_TRANSFORM, DEFAULT_SLICING, DEFAULT_CUBE_GRID_PARAMS, DEFAULT_LINE_GRID_PARAMS, DEFAULT_PLANE_GRID_PARAMS, DEFAULT_AUTOMATA_GRID_PARAMS } from './types';
+import type {
+  SceneNode,
+  ScenePreset,
+  CubeGridParams,
+  LineGridParams,
+  PlaneGridParams,
+  AutomataGridParams,
+} from './types';
+import {
+  DEFAULT_TRANSFORM,
+  DEFAULT_SLICING,
+  DEFAULT_CUBE_GRID_PARAMS,
+  DEFAULT_LINE_GRID_PARAMS,
+  DEFAULT_PLANE_GRID_PARAMS,
+  DEFAULT_AUTOMATA_GRID_PARAMS,
+} from './types';
 
 // =============================================================================
 // Scene Presets: one-click example scenes
@@ -17,7 +31,10 @@ export const PRESETS: ScenePreset[] = [
       {
         name: 'Cube',
         type: 'cube',
-        params: { min: [-1, -1, -1] as [number, number, number], max: [1, 1, 1] as [number, number, number] },
+        params: {
+          min: [-1, -1, -1] as [number, number, number],
+          max: [1, 1, 1] as [number, number, number],
+        },
         transform: { ...t },
         visible: true,
         slicing: { ...s },
@@ -33,7 +50,10 @@ export const PRESETS: ScenePreset[] = [
         {
           name: 'Outer Cube',
           type: 'cube',
-          params: { min: [-1, -1, -1] as [number, number, number], max: [1, 1, 1] as [number, number, number] },
+          params: {
+            min: [-1, -1, -1] as [number, number, number],
+            max: [1, 1, 1] as [number, number, number],
+          },
           transform: { ...t },
           visible: true,
           slicing: { ...s },
@@ -41,7 +61,10 @@ export const PRESETS: ScenePreset[] = [
         {
           name: 'Inner Sphere',
           type: 'sphere',
-          params: { center: [0, 0, 0] as [number, number, number], radius: 1.35 },
+          params: {
+            center: [0, 0, 0] as [number, number, number],
+            radius: 1.35,
+          },
           transform: { ...t },
           visible: true,
           slicing: { ...s },
@@ -109,11 +132,11 @@ export const PRESETS: ScenePreset[] = [
             max: [0.4, 0.4, 0.4] as [number, number, number],
           },
           transform: {
-            translate: [
-              Math.cos(angle) * 2,
-              Math.sin(angle) * 2,
-              0,
-            ] as [number, number, number],
+            translate: [Math.cos(angle) * 2, Math.sin(angle) * 2, 0] as [
+              number,
+              number,
+              number,
+            ],
             rotate: [0, 0, (angle * 180) / Math.PI] as [number, number, number],
             scale: [1, 1, 1] as [number, number, number],
           },
@@ -179,7 +202,7 @@ export const PRESETS: ScenePreset[] = [
         params: { center: [0, 0, 0] as [number, number, number], radius: 1.5 },
         transform: { ...t },
         visible: true,
-        slicing: { enabled: true, axis: 'z' as const, count: 8, gap: 0 },
+        slicing: { enabled: true, axis: 'z' as const, count: 8 },
       },
     ],
   },
@@ -196,7 +219,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 6, countY: 6, countZ: 6,
+          countX: 6,
+          countY: 6,
+          countZ: 6,
           spacing: 0.5,
           sizeMethod: 'noise',
           sizeMin: 0.02,
@@ -223,7 +248,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 7, countY: 7, countZ: 7,
+          countX: 7,
+          countY: 7,
+          countZ: 7,
           spacing: 0.45,
           sizeMethod: 'radial',
           sizeMin: 0.02,
@@ -247,7 +274,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '2d',
-          countX: 12, countY: 12, countZ: 1,
+          countX: 12,
+          countY: 12,
+          countZ: 1,
           spacing: 0.45,
           sizeMethod: 'sine',
           sizeMin: 0.05,
@@ -272,7 +301,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 8, countY: 8, countZ: 8,
+          countX: 8,
+          countY: 8,
+          countZ: 8,
           spacing: 0.4,
           sizeMethod: 'random',
           sizeMin: 0.05,
@@ -298,7 +329,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 6, countY: 6, countZ: 6,
+          countX: 6,
+          countY: 6,
+          countZ: 6,
           spacing: 0.5,
           sizeMethod: 'uniform',
           sizeMin: 0.35,
@@ -324,7 +357,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 10, countY: 10, countZ: 10,
+          countX: 10,
+          countY: 10,
+          countZ: 10,
           spacing: 0.35,
           sizeMethod: 'uniform',
           sizeMin: 0.28,
@@ -349,7 +384,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 12, countY: 12, countZ: 8,
+          countX: 12,
+          countY: 12,
+          countZ: 8,
           spacing: 0.32,
           sizeMethod: 'uniform',
           sizeMin: 0.24,
@@ -374,7 +411,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 9, countY: 9, countZ: 9,
+          countX: 9,
+          countY: 9,
+          countZ: 9,
           spacing: 0.38,
           sizeMethod: 'manhattan',
           sizeMin: 0.08,
@@ -399,7 +438,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 9, countY: 9, countZ: 9,
+          countX: 9,
+          countY: 9,
+          countZ: 9,
           spacing: 0.38,
           sizeMethod: 'uniform',
           sizeMin: 0.3,
@@ -424,7 +465,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 15, countY: 3, countZ: 21,
+          countX: 15,
+          countY: 3,
+          countZ: 21,
           spacing: 0.2,
           sizeMethod: 'uniform',
           sizeMin: 0.16,
@@ -450,7 +493,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 29, countY: 3, countZ: 21,
+          countX: 29,
+          countY: 3,
+          countZ: 21,
           spacing: 0.15,
           sizeMethod: 'uniform',
           sizeMin: 0.12,
@@ -476,7 +521,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 12, countY: 12, countZ: 12,
+          countX: 12,
+          countY: 12,
+          countZ: 12,
           spacing: 0.3,
           sizeMethod: 'uniform',
           sizeMin: 0.2,
@@ -501,7 +548,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 8, countY: 8, countZ: 8,
+          countX: 8,
+          countY: 8,
+          countZ: 8,
           spacing: 0.4,
           sizeMethod: 'step',
           sizeMin: 0.04,
@@ -526,7 +575,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '2d',
-          countX: 16, countY: 16, countZ: 1,
+          countX: 16,
+          countY: 16,
+          countZ: 1,
           spacing: 0.35,
           sizeMethod: 'ripple',
           sizeMin: 0.02,
@@ -553,7 +604,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 9, countY: 9, countZ: 9,
+          countX: 9,
+          countY: 9,
+          countZ: 9,
           spacing: 0.4,
           sizeMethod: 'uniform',
           sizeMin: 0.32,
@@ -579,7 +632,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 9, countY: 9, countZ: 9,
+          countX: 9,
+          countY: 9,
+          countZ: 9,
           spacing: 0.4,
           sizeMethod: 'uniform',
           sizeMin: 0.32,
@@ -605,7 +660,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 6, countY: 6, countZ: 10,
+          countX: 6,
+          countY: 6,
+          countZ: 10,
           spacing: 0.55,
           sizeMethod: 'uniform',
           sizeMin: 0.45,
@@ -632,7 +689,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 8, countY: 8, countZ: 12,
+          countX: 8,
+          countY: 8,
+          countZ: 12,
           spacing: 0.42,
           sizeMethod: 'random',
           sizeMin: 0.2,
@@ -660,7 +719,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 10, countY: 10, countZ: 6,
+          countX: 10,
+          countY: 10,
+          countZ: 6,
           spacing: 0.38,
           sizeMethod: 'uniform',
           sizeMin: 0.3,
@@ -687,7 +748,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 12, countY: 12, countZ: 8,
+          countX: 12,
+          countY: 12,
+          countZ: 8,
           spacing: 0.32,
           sizeMethod: 'uniform',
           sizeMin: 0.26,
@@ -714,7 +777,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 13, countY: 13, countZ: 3,
+          countX: 13,
+          countY: 13,
+          countZ: 3,
           spacing: 0.3,
           sizeMethod: 'uniform',
           sizeMin: 0.24,
@@ -740,7 +805,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 11, countY: 11, countZ: 5,
+          countX: 11,
+          countY: 11,
+          countZ: 5,
           spacing: 0.34,
           sizeMethod: 'uniform',
           sizeMin: 0.28,
@@ -1098,7 +1165,9 @@ export const PRESETS: ScenePreset[] = [
         params: {
           ...DEFAULT_CUBE_GRID_PARAMS,
           dimensions: '3d',
-          countX: 4, countY: 4, countZ: 4,
+          countX: 4,
+          countY: 4,
+          countZ: 4,
           spacing: 0.8,
           sizeMethod: 'noise',
           sizeMin: 0.1,

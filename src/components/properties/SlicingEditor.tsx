@@ -7,10 +7,17 @@ interface Props {
   onChange: (s: Partial<SlicingConfig>) => void;
 }
 
-export const SlicingEditor = memo(function SlicingEditor({ slicing, onChange }: Props) {
+export const SlicingEditor = memo(function SlicingEditor({
+  slicing,
+  onChange,
+}: Props) {
   return (
     <div className="property-grid">
-      <CheckboxInput label="Enabled" value={slicing.enabled} onChange={(v) => onChange({ enabled: v })} />
+      <CheckboxInput
+        label="Enabled"
+        value={slicing.enabled}
+        onChange={(v) => onChange({ enabled: v })}
+      />
       {slicing.enabled && (
         <>
           <SelectInput
@@ -23,7 +30,17 @@ export const SlicingEditor = memo(function SlicingEditor({ slicing, onChange }: 
             ]}
             onChange={(v) => onChange({ axis: v as 'x' | 'y' | 'z' })}
           />
-          <NumberInput label="Slices" value={slicing.count} onChange={(v) => onChange({ count: Math.round(v) })} step={1} min={1} max={50} />
+          <p className="property-value-text">
+            Slices follow the mesh; exploded gaps are unavailable.
+          </p>
+          <NumberInput
+            label="Slices"
+            value={slicing.count}
+            onChange={(v) => onChange({ count: Math.round(v) })}
+            step={1}
+            min={1}
+            max={50}
+          />
         </>
       )}
     </div>

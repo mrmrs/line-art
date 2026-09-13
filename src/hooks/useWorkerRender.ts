@@ -1,14 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import type { SceneNode, CameraConfig, RenderSettings, RenderResult } from '../lib/types';
-
-// =============================================================================
-// Worker Render Hook
-//
-// Sends scene data to a Web Worker for rendering. The worker processes only
-// the latest request, so rapid updates (orbit, zoom) stay responsive.
-// The main thread never blocks on ln.js rendering.
-// =============================================================================
-
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type {
+  SceneNode,
+  CameraConfig,
+  RenderSettings,
+  RenderResult,
+} from '../lib/types';
 export function useWorkerRender(
   nodes: SceneNode[],
   camera: CameraConfig,
@@ -16,106 +12,106 @@ export function useWorkerRender(
   height: number,
   settings: RenderSettings,
   isDragging: boolean,
-): RenderResult & { rendering: boolean } {
+): RenderResult & {
+  rendering: boolean;
+  error: string | null;
+  cancel: () => void;
+  retry: () => void;
+} {
   const [result, setResult] = useState<RenderResult>({
     svg: '',
     renderTimeMs: 0,
     pathCount: 0,
   });
-  const [rendering, setRendering] = useState(false);
-  const workerRef = useRef<Worker | null>(null);
-  const latestIdRef = useRef(0);
-  const renderingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const emptyResult: RenderResult | null =
-    width > 0 && height > 0 && nodes.length === 0
-      ? {
-          svg:
-            `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
-            `viewBox="0 0 ${width} ${height}" style="background:${settings.backgroundColor}"></svg>`,
-          renderTimeMs: 0,
-          pathCount: 0,
-        }
-      : null;
-
-  // --- Initialize worker ---
+  const [rendering, setRendering] = useState(false),
+    [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const worker = useRef<Worker | null>(null),
+    sentNodes = useRef<SceneNode[] | null>(null);
+  const latest = useRef(0),
+    revision = useRef(0);
+  const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const stop = useCallback(() => {
+    clearTimeout(timeout.current);
+    worker.current?.terminate();
+    worker.current = null;
+    sentNodes.current = null;
+    latest.current++;
+  }, []);
+  const cancel = useCallback(() => {
+    stop();
+    setRendering(false);
+    setError('Render cancelled. Change a control or retry.');
+  }, [stop]);
+  useEffect(() => () => stop(), [stop]);
   useEffect(() => {
-    const worker = new Worker(
-      new URL('../lib/render-worker.ts', import.meta.url),
-      { type: 'module' },
-    );
-
-    worker.onmessage = (e: MessageEvent) => {
-      const msg = e.data;
-      if (msg.type === 'result') {
-        // Only accept the result if it's from our latest request
-        if (msg.id >= latestIdRef.current) {
-          if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
+    if (width <= 0 || height <= 0) return;
+    if (!worker.current) {
+      const instance = new Worker(
+        new URL('../lib/render-worker.ts', import.meta.url),
+        { type: 'module' },
+      );
+      worker.current = instance;
+      instance.onmessage = (event) => {
+        const msg = event.data;
+        if (msg.id !== latest.current) return;
+        if (msg.type === 'started') {
+          setRendering(true);
+          setError(null);
+        } else if (msg.type === 'result') {
           setResult({
             svg: msg.svg,
-            renderTimeMs: msg.renderTimeMs,
             pathCount: msg.pathCount,
+            renderTimeMs: msg.renderTimeMs,
           });
-          // Keep the indicator visible until the final pass arrives — drafts
-          // are intermediate.
-          if (msg.isFinal) setRendering(false);
+          if (msg.isFinal) {
+            clearTimeout(timeout.current);
+            setRendering(false);
+          }
+        } else if (msg.type === 'error') {
+          clearTimeout(timeout.current);
+          setRendering(false);
+          setError(msg.error);
         }
-      } else if (msg.type === 'error') {
-        console.error('Worker render error:', msg.error);
-        if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
+      };
+      instance.onerror = (event) => {
+        stop();
         setRendering(false);
-      }
-    };
-
-    worker.onerror = (e) => {
-      console.error('Worker error:', e);
-      if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
-      setRendering(false);
-    };
-
-    workerRef.current = worker;
-    return () => {
-      if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
-      worker.terminate();
-    };
-  }, []);
-
-  // --- Send render requests ---
-  useEffect(() => {
-    if (width <= 0 || height <= 0 || !workerRef.current) return;
-
-    if (nodes.length === 0) {
-      latestIdRef.current += 1;
-      if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
-      // Clear stale image when scene becomes empty. Defer to a microtask so
-      // setState is not called synchronously inside the effect body.
-      renderingTimerRef.current = setTimeout(() => {
-        setResult({ svg: '', renderTimeMs: 0, pathCount: 0 });
-        setRendering(false);
-      }, 0);
-      return;
+        setError(event.message || 'Render worker failed');
+      };
     }
-
-    // Use faster settings during interaction
-    const effectiveSettings: RenderSettings = isDragging
-      ? { ...settings, step: Math.max(settings.step, 0.5) }
-      : settings;
-
-    const id = ++latestIdRef.current;
-    if (renderingTimerRef.current) clearTimeout(renderingTimerRef.current);
-    renderingTimerRef.current = setTimeout(() => {
-      if (id === latestIdRef.current) setRendering(true);
-    }, 0);
-
-    workerRef.current.postMessage({
+    if (sentNodes.current !== nodes) {
+      worker.current.postMessage({
+        type: 'scene',
+        revision: ++revision.current,
+        nodes,
+      });
+      sentNodes.current = nodes;
+    }
+    const id = ++latest.current;
+    worker.current.postMessage({
       type: 'render',
       id,
-      nodes,
+      revision: revision.current,
       camera,
       width,
       height,
-      settings: effectiveSettings,
+      settings: isDragging
+        ? { ...settings, step: Math.max(settings.step, 0.5) }
+        : settings,
     });
-  }, [nodes, camera, width, height, settings, isDragging]);
-
-  return emptyResult ? { ...emptyResult, rendering: false } : { ...result, rendering };
+    clearTimeout(timeout.current);
+    timeout.current = setTimeout(() => {
+      stop();
+      setRendering(false);
+      setError('Render exceeded 30 seconds. Reduce scene complexity or retry.');
+    }, 30000);
+  }, [nodes, camera, width, height, settings, isDragging, attempt, stop]);
+  return {
+    ...result,
+    rendering,
+    error,
+    cancel,
+    retry: () => setAttempt((v) => v + 1),
+  };
 }
