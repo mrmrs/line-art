@@ -190,6 +190,10 @@ export function Sidebar() {
                 })()}
                 <button
                   className="btn-icon delete-btn"
+                  type="button"
+                  aria-label={selectedIds.length > 1 && selectedIds.includes(node.id)
+                    ? `Delete ${selectedIds.length} selected`
+                    : `Delete ${node.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     // If this node is part of a multi-selection, delete all of them.
@@ -203,7 +207,14 @@ export function Sidebar() {
                     ? `Delete ${selectedIds.length} selected`
                     : 'Delete'}
                 >
-                  {'\u00D7'}
+                  <svg
+                    width="14" height="14" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="1.75"
+                    strokeLinecap="round" strokeLinejoin="round"
+                    aria-hidden="true" focusable="false"
+                  >
+                    <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
+                  </svg>
                 </button>
               </div>
             );
