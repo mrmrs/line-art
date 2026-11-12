@@ -1,0 +1,48 @@
+ISSUE scaled cube world hit distance
+  expected: 8
+  actual:   4
+ISSUE scaled cube beyond the eye must not occlude
+  expected: true
+  actual:   false
+ISSUE cylinder top cap
+  expected: 1
+  actual:   1000000000
+ISSUE cone base before side wall
+  expected: 1
+  actual:   1.75
+ISSUE parallel ray on box boundary has finite interval
+  expected: [ 2, 4 ]
+  actual:   [ 2, NaN ]
+ISSUE parallel ray on cube boundary hits face edge
+  expected: 2
+  actual:   1000000000
+ISSUE CSG intersection preserves distance after skipping first boundary
+  expected: 3
+  actual:   1.99
+ISSUE CSG union contains interior point
+  expected: true
+  actual:   false
+ISSUE small sphere blocks a ray through its center
+  expected: false
+  actual:   true
+ISSUE small triangle blocks a perpendicular ray
+  expected: 1
+  actual:   1000000000
+ISSUE 3D squared length
+  expected: 9
+  actual:   6
+ISSUE orthographic point behind a directly aligned blocker is hidden
+  expected: false
+  actual:   true
+  parallel reference hit: 4
+METRIC primitive tests beyond the eye: 7 (a bounded query can reject the root box)
+ISSUE thin occluder splits a line even when between coarse samples
+  expected: 2
+  actual:   1
+  hidden interior point: true
+  fine-step output paths: 2
+ISSUE height field surface exactly on box boundary
+  expected: 2
+  actual:   1000000000
+
+14 diagnostic mismatches. This is an audit, not a passing regression suite.

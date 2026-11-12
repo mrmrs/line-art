@@ -1,5 +1,6 @@
 import { useCallback, lazy, Suspense } from 'react';
-import { useSceneStore } from '../lib/store';
+import { randomizeShape } from '../lib/randomize';
+import { reportError, useSceneStore } from '../lib/store';
 import type {
   SceneNode,
   CubeParams,
@@ -133,6 +134,21 @@ function NodeProperties({
     [updateNodeSlicing, id],
   );
 
+  const randomize = async () => {
+    const updates = randomizeShape(node);
+    if (node.type === 'text-extrude') {
+      try {
+        const params = updates.params as TextExtrudeParams;
+        const { loadFont, textToPolylines } = await import('../lib/fonts');
+        const font = await loadFont(params.fontId);
+        updates.params = { ...params, ...textToPolylines(font, params.text, params) };
+        // Do not overwrite edits made while a font was loading.
+        if (useSceneStore.getState().nodes.find(n => n.id === id) !== node) return;
+      } catch (error) { reportError(error); return; }
+    }
+    updateNode(id, updates);
+  };
+
   return (
     <>
       <div className="properties-header">
@@ -175,7 +191,7 @@ function NodeProperties({
         )}
       </div>
       <div className="properties-section">
-        <div className="properties-section-title">Shape</div>
+        <div className="properties-section-title">Shape <button className="btn btn-xs btn-ghost" title="Randomize shape parameters" onClick={() => void randomize()}>Randomize</button></div>
         <Suspense fallback={<span>Loading editor…</span>}>
           <ShapeBody node={node} nodes={nodes} onChange={onParams} />
         </Suspense>
@@ -188,7 +204,7 @@ function NodeProperties({
         </div>
       )}
 
-      {MESH_LIKE.has(node.type) &&
+      {(MESH_LIKE.has(node.type) || node.type === 'cube-grid') &&
         !(
           node.type === 'svg-extrude' &&
           (node.params as SvgExtrudeParams).importMode === 'lines'

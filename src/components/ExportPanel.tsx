@@ -1,3 +1,4 @@
+import type { SceneNode, CameraConfig } from '../lib/types';
 import { useEffect, useRef, useState } from 'react';
 import { useSceneStore } from '../lib/store';
 import { DEFAULT_PLOT_SETTINGS } from '../lib/plot-settings';
@@ -11,6 +12,7 @@ export function ExportPanel({
   pageHeightMm,
   optimize,
   onClose,
+  composition,
 }: {
   width: number;
   height: number;
@@ -18,15 +20,17 @@ export function ExportPanel({
   pageHeightMm: number;
   optimize: boolean;
   onClose: () => void;
+  composition?: { nodes: SceneNode[]; camera: CameraConfig; marginMm: number };
 }) {
   const [plot, setPlot] = useState<PlotSettings>(() => {
     try {
       return {
         ...DEFAULT_PLOT_SETTINGS,
         ...JSON.parse(localStorage.getItem('ln-plot-settings') ?? '{}'),
+        ...(composition ? { marginMm: composition.marginMm } : {}),
       };
     } catch {
-      return DEFAULT_PLOT_SETTINGS;
+      return { ...DEFAULT_PLOT_SETTINGS, ...(composition ? { marginMm: composition.marginMm } : {}) };
     }
   });
   const [status, setStatus] = useState(''),
@@ -97,11 +101,20 @@ export function ExportPanel({
     const { nodes, cameras, activeCameraIndex, renderSettings } =
       useSceneStore.getState();
     instance.postMessage({
-      nodes,
-      camera: cameras[activeCameraIndex],
+      nodes: composition?.nodes ?? nodes,
+      camera: composition?.camera ?? cameras[activeCameraIndex],
       settings: {
         ...renderSettings,
+        ...(composition ? { near: 0.1, far: 100 } : {}),
         step: Math.min(renderSettings.step, 0.01),
+        curveTolerance: Math.max(
+          0.001,
+          Math.min(
+            renderSettings.curveTolerance ?? 0.25,
+            Math.max(0.001, plot.maxErrorMm / 2) *
+              Math.min(width / pageWidthMm, height / pageHeightMm),
+          ),
+        ),
       },
       width,
       height,

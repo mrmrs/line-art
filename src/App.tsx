@@ -1,4 +1,5 @@
-import { useStorageStatus } from './lib/store';
+import { ComposeWorkspace } from './components/ComposeWorkspace';
+import { useStorageStatus, useSceneStore } from './lib/store';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { Properties } from './components/Properties';
@@ -8,6 +9,7 @@ import { useUndoShortcuts } from './hooks/useUndoShortcuts';
 
 export default function App() {
   useUndoShortcuts();
+  const composition = useSceneStore(s => s.nodes.find(n => n.id === s.selectedId && n.type === 'packed-composition'));
   const { ready, error } = useStorageStatus();
   if (!ready)
     return (
@@ -31,10 +33,12 @@ export default function App() {
       )}
       <div className="app-body">
         <Sidebar />
+        {composition ? <ComposeWorkspace key={composition.id} node={composition} /> : <>
         <main className="app-main">
           <ViewportGrid />
         </main>
         <Properties />
+        </>}
       </div>
       <DropZone />
     </div>

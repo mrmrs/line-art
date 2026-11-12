@@ -1,0 +1,62 @@
+{
+  "node": "v24.15.0",
+  "method": "single illustrative run; timings are diagnostic, not benchmark medians",
+  "results": [
+    {
+      "fixture": "Planar cut",
+      "engine": "0.7.0 · clipped strokes",
+      "ms": 238.3,
+      "paths": 34,
+      "seams": 0
+    },
+    {
+      "fixture": "Planar cut",
+      "engine": "0.8.0 · new cut contours",
+      "ms": 279.22,
+      "paths": 35,
+      "seams": 1
+    },
+    {
+      "fixture": "Cylindrical bore",
+      "engine": "0.7.0 · clipped strokes",
+      "ms": 200.3,
+      "paths": 77,
+      "seams": 0
+    },
+    {
+      "fixture": "Cylindrical bore",
+      "engine": "0.8.0 · new cut contours",
+      "ms": 234.45,
+      "paths": 78,
+      "seams": 1
+    },
+    {
+      "fixture": "Sphere lens",
+      "engine": "0.7.0 · clipped strokes",
+      "ms": 85.36,
+      "paths": 71,
+      "seams": 0
+    },
+    {
+      "fixture": "Sphere lens",
+      "engine": "0.8.0 · new cut contours",
+      "ms": 103.02,
+      "paths": 72,
+      "seams": 1
+    },
+    {
+      "fixture": "Nested cuts",
+      "engine": "0.7.0 · clipped strokes",
+      "ms": 459.87,
+      "paths": 37,
+      "seams": 0
+    },
+    {
+      "fixture": "Nested cuts",
+      "engine": "0.8.0 · new cut contours",
+      "ms": 572.44,
+      "paths": 44,
+      "seams": 7
+    }
+  ]
+}

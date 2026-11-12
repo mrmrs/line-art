@@ -31,6 +31,8 @@ export class PointCloud {
     return false; // Points don't occlude anything
   }
 
+  occlusionTriangles(): ln.Triangle[] { return []; }
+
   intersect(_r: ln.Ray): typeof ln.NoHit {
     void _r;
     return ln.NoHit;

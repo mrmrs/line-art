@@ -4,6 +4,16 @@ export interface PenGroup {
   pen: number;
   paths: ln.Paths;
 }
+// Drop adjacent coordinates that collapse at serialization precision. A zero-
+// length polyline otherwise becomes a visible dot with round stroke caps.
+function svgPoints(path: ln.Paths[number]): string | null {
+  const points: string[] = [];
+  for (const p of path) {
+    const value = `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+    if (value !== points[points.length - 1]) points.push(value);
+  }
+  return points.length > 1 ? points.join(' ') : null;
+}
 // --- Custom SVG output with configurable styling ---
 
 // Physical dimensions for the export SVG. When provided, the <svg> width and
@@ -38,9 +48,8 @@ export function toStyledSVG(
 
   for (const path of paths) {
     if (path.length < 2) continue;
-    const points = path
-      .map((v) => `${v.x.toFixed(6)},${v.y.toFixed(6)}`)
-      .join(' ');
+    const points = svgPoints(path);
+    if (!points) continue;
     lines.push(`<polyline points="${points}" />`);
   }
 
@@ -75,9 +84,8 @@ export function multiPenSvg(
     );
     for (const path of grp.paths) {
       if (path.length < 2) continue;
-      const points = path
-        .map((v) => `${v.x.toFixed(6)},${v.y.toFixed(6)}`)
-        .join(' ');
+      const points = svgPoints(path);
+      if (!points) continue;
       lines.push(`<polyline points="${points}" />`);
     }
     lines.push(`</g>`);

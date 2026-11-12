@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test('layer trash control appears on hover and focus and deletes selected layers', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'ln.studio' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
   await page.evaluate(async () => {
     const { useSceneStore } = await import('/src/lib/store.ts');
     useSceneStore.getState().clearScene();
@@ -15,7 +15,7 @@ test('layer trash control appears on hover and focus and deletes selected layers
   await first.hover();
   await expect(button).toHaveCSS('opacity', '1');
   await expect(button.locator('svg')).toBeVisible();
-  await page.getByRole('heading', { name: 'ln.studio' }).hover();
+  await page.getByRole('img', { name: 'Studio mark' }).hover();
   await expect(button).toHaveCSS('opacity', '0');
   await button.focus();
   await expect(button).toHaveCSS('opacity', '1');

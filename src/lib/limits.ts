@@ -1,3 +1,5 @@
+import { validateComposition } from './composition';
+import type { CompositionParams } from './composition-types';
 import type {
   CameraConfig,
   RenderSettings,
@@ -151,6 +153,12 @@ export function validateNodes(nodes: SceneNode[]) {
       return p[key];
     };
     switch (n.type) {
+      case 'packed-composition':
+        if (n.transform.translate.some(x => x !== 0) || n.transform.rotate.some(x => x !== 0) || n.transform.scale.some(x => x !== 1))
+          throw new Error('Composition transforms belong to individual forms; the paper transform must remain unchanged');
+        validateComposition(n.params as CompositionParams);
+        cells += (n.params as CompositionParams).instances.length * 4;
+        break;
       case 'cube-grid':
         cells +=
           count('countX') *
@@ -266,6 +274,8 @@ export function validateNodes(nodes: SceneNode[]) {
       bounded(fill.dotSize, 'Dot size', 0.001, 100);
       bounded(fill.count, 'Contour count', 1, 100, true);
       bounded(fill.pen, 'Pen', 1, 8, true);
+      if (fill.faceAxis !== undefined && !['all', 'x', 'y', 'z'].includes(fill.faceAxis))
+        throw new Error('Invalid fill face axis');
       if (
         !['cross-hatch', 'surface-hatch', 'stipple', 'contour'].includes(
           fill.type,
@@ -287,6 +297,8 @@ export function validateView(
   bounded(width, 'Width', 1, 10000);
   bounded(height, 'Height', 1, 10000);
   bounded(settings.step, 'Render step', 0.001, 10);
+  if (settings.curveTolerance !== undefined)
+    bounded(settings.curveTolerance, 'Curve tolerance', 0.001, 4);
   bounded(settings.near, 'Near plane', 0.0001, 10000);
   bounded(settings.far, 'Far plane', settings.near + 0.0001, 100000);
   bounded(settings.strokeWidth, 'Stroke width', 0.001, 100);

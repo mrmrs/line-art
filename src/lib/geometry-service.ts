@@ -1,8 +1,10 @@
+import { compositionShapes } from './composition-geometry';
+import type { CompositionParams } from './composition-types';
 import * as ln from '@lnjs/core';
 import { toStyledSVG } from './svg-output';
 import type { PhysicalSize, PenGroup } from './svg-output';
 import { compileExpression } from './expression';
-import { validateNodes, validateView, assertPaths, LIMITS } from './limits';
+import { validateNodes, validateView, assertPaths, bounded, LIMITS } from './limits';
 import { projectPaths } from './projection';
 import { HeightField } from './height-field';
 import type {
@@ -194,6 +196,23 @@ function getHostTriangles(node: SceneNode): ln.Triangle[] | null {
       for (const k of meshTriangleCache.keys()) {
         if (k.startsWith(`${node.id}|`) && k !== cacheKey)
           meshTriangleCache.delete(k);
+      }
+      meshTriangleCache.set(cacheKey, tris);
+    }
+    return tris;
+  }
+  if (node.type === 'cube-grid') {
+    const cubes = getCachedCubes(node.id, node.params, () => generateCubeGrid(node.params as CubeGridParams));
+    const cacheKey = `${node.id}|grid|${paramsHash(node.params)}`;
+    let tris = meshTriangleCache.get(cacheKey);
+    if (!tris) {
+      bounded(cubes.length * 12, 'Grid fill triangles', 0, LIMITS.triangles);
+      tris = cubes.flatMap(cube => tessellateCube({
+        min: [cube.min.x, cube.min.y, cube.min.z],
+        max: [cube.max.x, cube.max.y, cube.max.z],
+      }));
+      for (const key of meshTriangleCache.keys()) {
+        if (key.startsWith(`${node.id}|`) && key !== cacheKey) meshTriangleCache.delete(key);
       }
       meshTriangleCache.set(cacheKey, tris);
     }
@@ -478,6 +497,11 @@ function getCachedCubes(
 }
 
 function createShapes(node: SceneNode, allNodes: SceneNode[]): ln.ShapeT[] {
+  if (node.type === 'packed-composition') {
+    const shapes = compositionShapes(node.params as CompositionParams);
+    const matrix = buildTransformMatrix(node.transform);
+    return hasNonIdentityTransform(node.transform) ? shapes.map(s => new ln.TransformedShape(s, matrix)) : shapes;
+  }
   if (node.type === 'cube-grid') {
     const p = node.params as CubeGridParams;
     const cubes = getCachedCubes(node.id, p, () => generateCubeGrid(p));
@@ -826,6 +850,9 @@ interface RenderOptions {
 // Wrap a shape so it occludes but contributes no paths of its own.
 class OccluderOnly {
   inner: ln.ShapeT;
+  get occlusionShape() {
+    return this.inner;
+  }
   constructor(inner: ln.ShapeT) {
     this.inner = inner;
   }
@@ -842,8 +869,8 @@ class OccluderOnly {
   contains(v: ln.Vector, f: number): boolean {
     return this.inner.contains(v, f);
   }
-  intersect(r: ln.Ray): typeof ln.NoHit {
-    return this.inner.intersect(r) as typeof ln.NoHit;
+  intersect(r: ln.Ray, tMin?: number, tMax?: number): typeof ln.NoHit {
+    return this.inner.intersect(r, tMin, tMax) as typeof ln.NoHit;
   }
 }
 
@@ -878,6 +905,7 @@ interface PreparedScene {
   extraPaths: ln.Paths;
   occludedPaths: ln.Paths;
   fills: { paths: ln.Paths; scene: ln.Scene }[];
+  navigationPaths?: ln.Paths;
 }
 let preparedNodes: SceneNode[] | null = null;
 const preparedScenes = new Map<string, PreparedScene>();
@@ -909,6 +937,7 @@ function prepareScene(
     exclude: ln.ShapeT[];
     surface?: ln.ShapeT;
   }[] = [];
+  const surfaces = new Map<string, ln.Mesh>();
   const suppress = options.suppressMainPaths === true;
   const wrap = (sh: ln.ShapeT): ln.ShapeT =>
     suppress ? (new OccluderOnly(sh) as unknown as ln.ShapeT) : sh;
@@ -1009,7 +1038,7 @@ function prepareScene(
     // (cube-grid / line-grid / point-cloud).
     let host: ReturnType<typeof buildFillHost> | null = null;
     let hostHash = '';
-    if (hasFills && shapes.length === 1) {
+    if (hasFills && (shapes.length === 1 || node.type === 'cube-grid')) {
       const hostTris = getHostTriangles(node);
       if (hostTris && hostTris.length > 0) {
         const transformHash = paramsHash(node.transform);
@@ -1060,6 +1089,11 @@ function prepareScene(
           fillCache.set(cacheKey, cached);
         }
         if (cached.paths.length > 0) {
+          let surface = surfaces.get(node.id);
+          if (!surface) {
+            surface = new ln.Mesh(host.triangles);
+            surfaces.set(node.id, surface);
+          }
           fillBatches.push({
             paths: cached.paths,
             exclude: effectiveShapes,
@@ -1067,7 +1101,7 @@ function prepareScene(
               fill.type === 'surface-hatch' ||
               fill.type === 'contour' ||
               (fill.type === 'stipple' && fill.surfaceMode)
-                ? new ln.Mesh(deepCopyTriangles(host.triangles))
+                ? surface
                 : undefined,
           });
         }
@@ -1080,30 +1114,42 @@ function prepareScene(
   assertPaths(extraPaths);
   assertPaths(occludedPaths);
   scene.compile();
-  const fills = fillBatches.map((batch) => {
+  // Reuse one visibility scene per host policy, then batch all matching marks.
+  const policies = new Map<ln.ShapeT[], Map<boolean, ln.Scene>>();
+  const grouped = new Map<ln.Scene, ln.Paths>();
+  for (const batch of fillBatches) {
     assertPaths(batch.paths);
-    const others = new ln.Scene();
-    for (const shape of scene.shapes)
-      if (!batch.exclude.includes(shape)) others.add(shape);
-    if (batch.surface) others.add(batch.surface);
-    others.compile();
-    return { paths: batch.paths, scene: others };
-  });
+    let variants = policies.get(batch.exclude);
+    if (!variants) {
+      variants = new Map();
+      policies.set(batch.exclude, variants);
+    }
+    const surface = !!batch.surface;
+    let others = variants.get(surface);
+    if (!others) {
+      others = new ln.Scene();
+      for (const shape of scene.shapes)
+        if (!batch.exclude.includes(shape)) others.add(shape);
+      if (batch.surface) others.add(batch.surface);
+      others.compile();
+      variants.set(surface, others);
+    }
+    let paths = grouped.get(others);
+    if (!paths) {
+      paths = [];
+      grouped.set(others, paths);
+    }
+    for (const path of batch.paths) paths.push(path);
+  }
+  const fills = Array.from(grouped, ([scene, paths]) => ({ scene, paths }));
   const prepared = { scene, paths, extraPaths, occludedPaths, fills };
   preparedScenes.set(key, prepared);
   return prepared;
 }
 
-export function computeProjectedPaths(
-  nodes: SceneNode[],
-  camera: CameraConfig,
-  width: number,
-  height: number,
-  settings: RenderSettings,
-  options: RenderOptions = {},
-): ln.Paths {
+// Keep interactive and exact rendering on precisely the same camera model.
+function projectionForView(camera: CameraConfig, width: number, height: number, settings: RenderSettings) {
   validateView(camera, width, height, settings);
-  const prepared = prepareScene(nodes, options);
   // Apply zoom: >1 = closer (zoomed in), <1 = further (zoomed out)
   const zoom = camera.zoom ?? 1;
   const rawEye: Vec3 = camera.eye;
@@ -1142,6 +1188,66 @@ export function computeProjectedPaths(
     : ln
         .lookAt(eye, center, up)
         .perspective(camera.fovy, width / height, settings.near, settings.far);
+  return { matrix, eye };
+}
+
+// One scene-wide budget, including every direct and fill channel. Cache original
+// segments instead of thinning a polyline's vertices: skipped samples must never
+// create a spurious chord between unrelated points. Sampling includes both ends
+// of the stream and distributes the remaining samples evenly through its extent.
+const NAVIGATION_SEGMENT_LIMIT = 6000;
+function navigationPaths(prepared: PreparedScene): ln.Paths {
+  if (prepared.navigationPaths) return prepared.navigationPaths;
+  const groups = [prepared.paths, prepared.extraPaths, prepared.occludedPaths,
+    ...prepared.fills.map(batch => batch.paths)];
+  let segmentCount = 0;
+  for (const paths of groups) for (const path of paths) segmentCount += Math.max(0, path.length - 1);
+  const count = Math.min(segmentCount, NAVIGATION_SEGMENT_LIMIT), sampled: ln.Paths = [];
+  let offset = 0, sample = 0;
+  const target = () => count <= 1 ? 0 : Math.floor(sample * (segmentCount - 1) / (count - 1));
+  for (const paths of groups) for (const path of paths) {
+    const segments = Math.max(0, path.length - 1);
+    while (sample < count && target() < offset + segments) {
+      const index = target() - offset;
+      sampled.push([path[index], path[index + 1]]);
+      sample++;
+    }
+    offset += segments;
+  }
+  prepared.navigationPaths = sampled;
+  return sampled;
+}
+
+/** Bounded wireframe for camera interaction; exact visibility/export stay separate. */
+export function renderNavigationPreview(
+  nodes: SceneNode[], camera: CameraConfig, width: number, height: number, settings: RenderSettings,
+): RenderResult {
+  const start = performance.now();
+  const { matrix, eye } = projectionForView(camera, width, height, settings);
+  const paths = projectPaths(navigationPaths(prepareScene(nodes, {})), matrix, eye, width, height, settings.step);
+  const commands: string[] = [];
+  for (const path of paths) {
+    if (path.length < 2) continue;
+    const a = `${Math.round(path[0].x * 100) / 100},${Math.round(path[0].y * 100) / 100}`;
+    const b = `${Math.round(path[1].x * 100) / 100},${Math.round(path[1].y * 100) / 100}`;
+    if (a !== b) commands.push(`M${a}L${b}`);
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="background:${settings.backgroundColor}">` +
+    `<g transform="translate(0,${height}) scale(1,-1)" stroke="${settings.strokeColor}" stroke-width="${settings.strokeWidth}" stroke-linecap="round" fill="none">` +
+    `<path d="${commands.join('')}"/></g></svg>`;
+  return { svg, renderTimeMs: performance.now() - start, pathCount: commands.length };
+}
+
+export function computeProjectedPaths(
+  nodes: SceneNode[],
+  camera: CameraConfig,
+  width: number,
+  height: number,
+  settings: RenderSettings,
+  options: RenderOptions = {},
+): ln.Paths {
+  const { matrix, eye } = projectionForView(camera, width, height, settings);
+  const prepared = prepareScene(nodes, options);
   const budget = { samples: 0 };
   const paths = projectPaths(
     prepared.paths,
@@ -1152,6 +1258,7 @@ export function computeProjectedPaths(
     settings.step,
     prepared.scene,
     budget,
+    { curveTolerance: settings.curveTolerance ?? 0.25 },
   );
   for (const path of projectPaths(
     prepared.occludedPaths,
@@ -1162,6 +1269,7 @@ export function computeProjectedPaths(
     settings.step,
     prepared.scene,
     budget,
+    { curveTolerance: settings.curveTolerance ?? 0.25 },
   ))
     paths.push(path);
   for (const path of projectPaths(
@@ -1173,6 +1281,7 @@ export function computeProjectedPaths(
     settings.step,
     undefined,
     budget,
+    { curveTolerance: settings.curveTolerance ?? 0.25 },
   ))
     paths.push(path);
   for (const batch of prepared.fills)
@@ -1185,6 +1294,7 @@ export function computeProjectedPaths(
       settings.step,
       batch.scene,
       budget,
+      { curveTolerance: settings.curveTolerance ?? 0.25 },
     ))
       paths.push(path);
   assertPaths(paths);

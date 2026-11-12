@@ -2,7 +2,7 @@
 
 Scope: rendering, geometry generation, caching, fills, projection, SVG export, worker scheduling, scene persistence, and the controls that connect them. This is a source audit with executable geometry regression tests, not a browser compatibility certification or a physical plot test.
 
-## Changes implemented
+## Initial changes implemented
 
 | Finding | Change | Verification |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ Scope: rendering, geometry generation, caching, fills, projection, SVG export, w
 | One-point Fibonacci sphere emitted NaN; negative grid spacing could loop forever | Finite singleton placement and positive spacing fallback | Explicit edge-case tests |
 | Displayed render duration excluded SVG serialization | Include serialization in elapsed time | Source inspection/build |
 
-## Validation and limits
+## Initial audit validation and limits
 
 Run `npm test`, `npm run build`, and `npm run lint`. Eleven regression tests pass. No new test dependency was installed: the runner uses existing TypeScript plus Node's test runner, removing compiled temporary files afterward.
 
@@ -31,17 +31,35 @@ Build/lint passed before changes as well. Vite still reports a main bundle above
 
 Visible corrections: rectangular orthographic compositions now preserve proportions and may frame differently; stipple patterns become repeatable; formerly missing diagonal hatches appear; single-pen export stroke order now responds to Optimize. Triangle crossing tests assume closed manifold meshes and do not provide a robust classification for arbitrary tangent/boundary/non-manifold cases.
 
-## Remaining work, in priority order
+## Follow-up implementation — all eight items addressed
 
-These require broader behavior or data-model changes and remain open.
+| Audit item | Resolution | Verification |
+| --- | --- | --- |
+| 1. Responsive export and scheduling | Dedicated export worker, per-pen/stage progress, cancel by worker termination, visible failures, and a ready-to-download/copy snapshot. Preview has Cancel/Retry and a 30-second watchdog. A single-owner latest-request scheduler invalidates stale draft/final continuations. Scene messages carry revisions and are sent only when nodes change. | Scheduler interleaving regression; browser export/download/cancel; worker-message counts during camera changes. |
+| 2. Direct-path clipping and visibility | All geometry uses homogeneous six-plane clipping before perspective division. Direct SVG lines, line grids, and slices have See-through / Hide behind objects controls. Visibility and subdivision share a bounded sampling budget. | Behind-camera and crossing-frustum fixtures; a line behind a cube disappears only in occluded mode. |
+| 3. Imported scene persistence | Atomic IndexedDB transactions store document state and mesh/source-SVG assets. Writes are serialized; failures are visible. Portable, versioned `.lnscene` files include assets. Import remaps the complete Boolean reference graph and rejects missing children/cycles/deep recursion; it is undoable. | IndexedDB round-trip, version rejection, graph remapping, cycle rejection, import/undo/redo; actual browser mesh reload through the file picker. |
+| 4. Surface stippling | Area-weighted barycentric candidates on actual triangles, deterministic spatial rejection, and tangent-plane marks. Flat meshes are supported. Surface fills use the host triangle mesh for self-occlusion; volume fills exclude their own host but remain occluded by other objects. | Triangle-face center checks, deterministic sampling, and finite render tests. Surface spacing uses Euclidean distance as a conservative lower bound on intrinsic distance; opposite folds may be thinned more than necessary. |
+| 5. Validation and work limits | Engine-boundary numeric/camera/shape/graph validation, explicit input/cell/triangle/path/vertex/sample budgets, STL count/size/coordinate validation, bounded fill sampling, and a math-only expression parser. No `new Function` remains. Boolean graph validation also bounds expanded work for shared children. Function surfaces now use a bounded Cartesian height field instead of ln.js's hard-coded radial function generator. | Invalid work, unsafe formulas, parser nesting, malformed STL, positive/negative height-field fixtures; browser error recovery. |
+| 6. Truthful controls and SVG interpretation | Removed unused bevel and slicing-gap properties from the public model; old scene files discard these inactive fields. Editors explicitly state the limitation. SVG line mode preserves open strokes; region mode resolves nonzero/even-odd winding per shape before union/extrusion. Unsupported SVG effects/references produce errors instead of incorrect geometry. | Nested winding-rule tests; browser open-stroke transform and filled-region checks. |
+| 7. Geometry/presentation separation | `geometry-service.ts` owns generator, mesh, BVH, shape and prepared-scene caches. Compiled scene acceleration and source paths are reused across camera requests; shapes are reused across pen passes. `projection.ts` owns clipping/visibility; `svg-output.ts` owns serialization; `plot-output.ts` owns physical cleanup. The UI store no longer imports rendering. SVG parsing and the text/font editor load lazily. Font loading uses fetch/parse with retryable failures; text regeneration ignores stale asynchronous results. | Build output; six-view browser test; warm/cold cache regression. Main entry decreased from ~630 kB to ~290 kB uncompressed and ~87 kB gzip, with no large-main-chunk warning. |
+| 8. Physical plotting controls | Millimeter margins, pen diameter, polyline simplification tolerance, minimum-clearance checks, exact duplicate-edge removal, degree-2 touching-endpoint joins, direction locks, and ink/travel/lift/time estimates. Processing is separate for each pen. Clipboard writing happens on a fresh user gesture after generation. | Clipping, joining, gap preservation, direction, closed-loop and clearance regressions; downloadable SVG with physical units. |
 
-1. **Responsive export and render scheduling.** `Toolbar.tsx` performs quality rendering synchronously on the main thread. Move export into a dedicated worker with progress, cancellation, and visible errors. `render-worker.ts` can coalesce queued requests but cannot interrupt a synchronous render; its asynchronous draft/final continuation also needs explicit ownership so an older final does not run after a newer request has already consumed `pendingRequest`. Send scene revisions separately from camera updates instead of cloning the entire scene into each viewport on every orbit. Measure multi-view memory before choosing worker sharing.
-2. **Clip and occlude direct paths.** `computeProjectedPaths` projects slicing and line-grid paths outside ln.js's hidden-line pipeline. They bypass scene occlusion and near-plane/frustum clipping. Give paths an explicit visible-through/occluded mode and clip homogeneous segments before perspective division. This is essential before adding long flow curves or recursive placement behind the camera.
-3. **Preserve imported scenes.** `store.ts` intentionally strips mesh data from localStorage and drops those nodes on reload. Move large assets to IndexedDB and introduce versioned scene files. `loadNodes`/`appendNodes` generate new IDs without remapping Boolean child references; remap the entire imported reference graph and reject cycles. Include reload/import/undo integration tests.
-4. **Make surface stippling literal.** `fills.ts` currently uses volume containment for both surface and volume modes. Sample triangles proportional to area and then thin samples by surface distance. Show the new behavior explicitly because existing art will change.
-5. **Bound and validate work.** Complexity labels are estimates, not enforced budgets. Enforce finite values, positive steps, valid camera bounds, triangle/path/vertex caps, recursion limits, and input-size limits at the engine boundary. Validate imported STL sizes and coordinates. Raw `new Function` expressions can run arbitrary JavaScript or never terminate; replace them with a bounded mathematical expression evaluator before introducing externally shared recipes.
-6. **Make exposed controls truthful.** `slicing.gap` is not used in `createSlicedPaths`; extrusion bevel fields are not part of the current extrusion geometry implementation. Implement their semantics or remove/disable them visibly. SVG extrusion assumes even-odd closed regions, so imported open strokes/nonzero fill rules need a distinct import mode.
-7. **Separate geometry from presentation.** `render.ts` mixes generation, transforms, visibility, per-pen passes and SVG writing; store cache imports keep render dependencies in the main bundle. Move caches under a worker-owned geometry service, reuse compiled scene geometry across pen/camera passes, lazy-load fonts/import machinery, and split serialization from projection.
-8. **Finish physical plotting controls.** Add margins, pen diameter in mm, maximum geometric error, minimum feature separation, duplicate-edge removal, safe endpoint joining, pen-up distance and length estimates. Keep path direction locking available for techniques sensitive to stroke direction; greedy reversal remains the current behavior.
+### Memory and worker choice
 
-See [the generative controls plan](generative-controls-plan.md) for the proposed architecture and implementation sequence.
+A Chrome six-view fixture with an 8×8×8 cube grid measured approximately 13.5 MB of main-thread JavaScript heap and 22–25 MB across six worker heaps (roughly 3.4–5 MB each). These are live CDP heap samples, not process RSS or a worst-case bound. Retain independent viewport workers: this measured fixture fits comfortably, and cancelling one worker does not interrupt other views. Camera-only updates do not clone the scene again. Large imports and complex fills still multiply geometry storage across visible views, so the engine also enforces geometry budgets.
+
+### Current limits and deliberate behavior
+
+- Engine limits: 500 scene nodes; 50,000 generated cells; 100,000 triangles per imported mesh; 250,000 paths; 2,000,000 vertices/samples; 20 MB per asset input; Boolean depth 32 and 500 expanded Boolean instances; at most eight heightmap noise octaves. Contour inputs have a 25,000-vertex preflight limit. Formula input is bounded to 2,048 characters, 256 tokens and nesting 32. Exceeding limits reports an error; geometry is never silently truncated to a budget.
+- Surface spacing is conservative, visibility uses finite sampling, and mathematical height fields use a 64×64 grid. The millimeter tolerance controls simplification of resulting polylines, not an exact analytic error bound on every source curve or occlusion boundary.
+- Minimum clearance checks are per pen and off by default (0), allowing intentional weaving/interference. When enabled, conflicting geometry blocks export with an explanation. Exact duplicate edges are removed; partially overlapping, differently segmented curves are not conflated. Endpoint joins require matching endpoints and degree two; they never bridge gaps.
+- A lock on any scene object conservatively preserves all export path directions. Time estimates assume a start at the margin for each pen and exclude device acceleration and manual pen changes.
+- SVG imports support plain geometry and inline/inherited fill rules. External references, stylesheets, text, clipping/masks/filters and images must first be converted to plain paths. The original SVG is retained so line/region interpretation can be changed.
+- Older localStorage saves that already omitted mesh payloads cannot recover those bytes. The app retains the legacy save and shows a reimport message. New saves include assets; quota/unavailable-storage errors are visible.
+- Export is a snapshot of the scene when Generate SVG was pressed. Cancellation terminates computation immediately at the worker boundary. Progress reports rendering/cleanup stages rather than claiming a precise percentage.
+
+### Follow-up validation
+
+Run `npm test`, `npm run test:browser`, `npm run build`, and `npm run lint`. All 25 engine/integration tests and all three browser scenarios pass. The browser suite requires installed Google Chrome and uses its own server port. The dependency audit was also cleaned up with compatible updates; `npm audit` reports zero known vulnerabilities. No physical pen plot or cross-browser certification is claimed.
+
+The creative additions in [the generative controls plan](generative-controls-plan.md) remain a separate future feature plan; this follow-up resolves the engineering audit items.

@@ -1,0 +1,203 @@
+{
+  "scope": "Packing only; no rendering or export. Timings are machine-dependent.",
+  "runtime": "v24.15.0",
+  "machine": "darwin arm64",
+  "cpu": "Apple M4 Max",
+  "cases": [
+    {
+      "name": "default A4",
+      "parameters": {
+        "version": 1,
+        "seed": 42,
+        "widthMm": 210,
+        "heightMm": 297,
+        "marginMm": 12,
+        "clearanceMm": 1.2,
+        "minSizeMm": 7,
+        "maxSizeMm": 38,
+        "density": 0.55,
+        "aspect": 2.8,
+        "coherence": 0.85,
+        "depth": 0.6,
+        "detail": 5,
+        "maxInstances": 500,
+        "construction": "shared",
+        "nesting": true,
+        "recursionDepth": 0,
+        "recursionScale": 0.5,
+        "motifs": [
+          "prism",
+          "frame",
+          "steps"
+        ],
+        "quiet": [],
+        "instances": []
+      },
+      "baseline": {
+        "elapsedMs": 19.64,
+        "instances": 49,
+        "coverage": 0.5510517093520405,
+        "attempts": 3527
+      },
+      "repaired": {
+        "elapsedMs": 17.29,
+        "instances": 49,
+        "coverage": 0.5510517093520405,
+        "attempts": 3527,
+        "repairAdded": 0,
+        "repairAttempts": 0,
+        "recursiveAdded": 0,
+        "maximumGeneration": 0,
+        "limited": false
+      },
+      "coverageGainPercentagePoints": 0,
+      "preservedPrefix": true
+    },
+    {
+      "name": "recursive frames A4",
+      "parameters": {
+        "version": 1,
+        "seed": 271,
+        "widthMm": 210,
+        "heightMm": 297,
+        "marginMm": 12,
+        "clearanceMm": 0.5,
+        "minSizeMm": 2,
+        "maxSizeMm": 100,
+        "density": 0.55,
+        "aspect": 1.6,
+        "coherence": 0.9,
+        "depth": 0.12,
+        "detail": 5,
+        "maxInstances": 500,
+        "construction": "shared",
+        "nesting": true,
+        "recursionDepth": 4,
+        "recursionScale": 0.5,
+        "motifs": [
+          "frame",
+          "prism"
+        ],
+        "quiet": [],
+        "instances": []
+      },
+      "baseline": {
+        "elapsedMs": 45.25,
+        "instances": 83,
+        "coverage": 0.5721864630104297,
+        "attempts": 8374
+      },
+      "repaired": {
+        "elapsedMs": 36.31,
+        "instances": 83,
+        "coverage": 0.5721864630104297,
+        "attempts": 8374,
+        "repairAdded": 0,
+        "repairAttempts": 0,
+        "recursiveAdded": 30,
+        "maximumGeneration": 3,
+        "limited": false
+      },
+      "coverageGainPercentagePoints": 0,
+      "preservedPrefix": true
+    },
+    {
+      "name": "dense gap repair",
+      "parameters": {
+        "version": 1,
+        "seed": 42,
+        "widthMm": 160,
+        "heightMm": 220,
+        "marginMm": 6,
+        "clearanceMm": 0.6,
+        "minSizeMm": 3,
+        "maxSizeMm": 34,
+        "density": 0.8,
+        "aspect": 4,
+        "coherence": 0.85,
+        "depth": 0.15,
+        "detail": 5,
+        "maxInstances": 500,
+        "construction": "shared",
+        "nesting": true,
+        "recursionDepth": 0,
+        "recursionScale": 0.5,
+        "motifs": [
+          "prism",
+          "frame",
+          "steps"
+        ],
+        "quiet": [],
+        "instances": []
+      },
+      "baseline": {
+        "elapsedMs": 25.29,
+        "instances": 192,
+        "coverage": 0.5500473943563405,
+        "attempts": 5200
+      },
+      "repaired": {
+        "elapsedMs": 90.54,
+        "instances": 355,
+        "coverage": 0.6357184524636086,
+        "attempts": 12950,
+        "repairAdded": 163,
+        "repairAttempts": 7750,
+        "recursiveAdded": 0,
+        "maximumGeneration": 0,
+        "limited": true
+      },
+      "coverageGainPercentagePoints": 8.5671,
+      "preservedPrefix": true
+    },
+    {
+      "name": "1000 mm square / 1500 cap",
+      "parameters": {
+        "version": 1,
+        "seed": 42,
+        "widthMm": 1000,
+        "heightMm": 1000,
+        "marginMm": 10,
+        "clearanceMm": 0.5,
+        "minSizeMm": 6,
+        "maxSizeMm": 45,
+        "density": 0.8,
+        "aspect": 2.8,
+        "coherence": 0.85,
+        "depth": 0.2,
+        "detail": 5,
+        "maxInstances": 1500,
+        "construction": "shared",
+        "nesting": true,
+        "recursionDepth": 0,
+        "recursionScale": 0.5,
+        "motifs": [
+          "prism",
+          "frame",
+          "steps"
+        ],
+        "quiet": [],
+        "instances": []
+      },
+      "baseline": {
+        "elapsedMs": 48,
+        "instances": 1177,
+        "coverage": 0.42807462752498393,
+        "attempts": 5200
+      },
+      "repaired": {
+        "elapsedMs": 213.08,
+        "instances": 1500,
+        "coverage": 0.5176840416108036,
+        "attempts": 20492,
+        "repairAdded": 323,
+        "repairAttempts": 15292,
+        "recursiveAdded": 0,
+        "maximumGeneration": 0,
+        "limited": true
+      },
+      "coverageGainPercentagePoints": 8.9609,
+      "preservedPrefix": true
+    }
+  ]
+}

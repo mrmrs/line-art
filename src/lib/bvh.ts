@@ -18,25 +18,37 @@ export interface BVHTriangle {
 }
 
 interface AABB {
-  minX: number; minY: number; minZ: number;
-  maxX: number; maxY: number; maxZ: number;
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
 }
 
 interface BVHNode {
   aabb: AABB;
   left: BVHNode | null;
   right: BVHNode | null;
-  triIdx: number[];          // populated only on leaves
+  triIdx: number[]; // populated only on leaves
 }
 
 const LEAF_THRESHOLD = 8;
 
 export class BVH {
-  triangles: BVHTriangle[];
+  triangles: ln.Triangle[];
   private root: BVHNode;
 
   constructor(triangles: BVHTriangle[]) {
-    this.triangles = triangles;
+    this.triangles = triangles.map((t) =>
+      t instanceof ln.Triangle
+        ? t
+        : new ln.Triangle(
+            new ln.Vector(t.v1.x, t.v1.y, t.v1.z),
+            new ln.Vector(t.v2.x, t.v2.y, t.v2.z),
+            new ln.Vector(t.v3.x, t.v3.y, t.v3.z),
+          ),
+    );
     const indices = triangles.map((_, i) => i);
     this.root = build(triangles, indices);
   }
@@ -46,21 +58,40 @@ export class BVH {
   intersect(
     origin: { x: number; y: number; z: number },
     dir: { x: number; y: number; z: number },
-    tMin = 1e-4,
-    tMax = 1e9,
+    tMin?: number,
+    tMax = Infinity,
   ): { t: number; triIdx: number }[] {
     const out: { t: number; triIdx: number }[] = [];
-    traverse(this.root, this.triangles, origin, dir, tMin, tMax, out);
+    const ray = new ln.Ray(
+      new ln.Vector(origin.x, origin.y, origin.z),
+      new ln.Vector(dir.x, dir.y, dir.z),
+    );
+    traverse(
+      this.root,
+      this.triangles,
+      ray,
+      tMin ?? ln.rayEpsilon(ray),
+      tMax,
+      out,
+    );
     out.sort((a, b) => a.t - b.t);
     return out;
   }
 
   // Merge coincident hits on triangulated faces. Raw intersect() retains
   // individual triangle IDs for callers that need them.
-  crossings(...args: Parameters<BVH['intersect']>): { t: number; triIdx: number }[] {
+  crossings(
+    ...args: Parameters<BVH['intersect']>
+  ): { t: number; triIdx: number }[] {
     const hits = this.intersect(...args);
-    return hits.filter((hit, i) => i === 0 || hit.t - hits[i - 1].t >
-      32 * Number.EPSILON * Math.max(1, Math.abs(hit.t), Math.abs(hits[i - 1].t)));
+    return hits.filter(
+      (hit, i) =>
+        i === 0 ||
+        hit.t - hits[i - 1].t >
+          32 *
+            Number.EPSILON *
+            Math.max(1, Math.abs(hit.t), Math.abs(hits[i - 1].t)),
+    );
   }
 
   // Assumes a closed manifold; boundary/tangent points are not classified.
@@ -155,56 +186,27 @@ function rayAABB(
   return [tMin, tMax];
 }
 
-// Möller-Trumbore ray-triangle intersection
-function rayTri(
-  origin: { x: number; y: number; z: number },
-  dir: { x: number; y: number; z: number },
-  t: BVHTriangle,
-): number | null {
-  const EPS = 1e-8;
-  const e1x = t.v2.x - t.v1.x, e1y = t.v2.y - t.v1.y, e1z = t.v2.z - t.v1.z;
-  const e2x = t.v3.x - t.v1.x, e2y = t.v3.y - t.v1.y, e2z = t.v3.z - t.v1.z;
-  // h = dir × e2
-  const hx = dir.y * e2z - dir.z * e2y;
-  const hy = dir.z * e2x - dir.x * e2z;
-  const hz = dir.x * e2y - dir.y * e2x;
-  const a = e1x * hx + e1y * hy + e1z * hz;
-  if (a > -EPS && a < EPS) return null;
-  const f = 1 / a;
-  const sx = origin.x - t.v1.x, sy = origin.y - t.v1.y, sz = origin.z - t.v1.z;
-  const u = f * (sx * hx + sy * hy + sz * hz);
-  if (u < 0 || u > 1) return null;
-  // q = s × e1
-  const qx = sy * e1z - sz * e1y;
-  const qy = sz * e1x - sx * e1z;
-  const qz = sx * e1y - sy * e1x;
-  const v = f * (dir.x * qx + dir.y * qy + dir.z * qz);
-  if (v < 0 || u + v > 1) return null;
-  const tHit = f * (e2x * qx + e2y * qy + e2z * qz);
-  if (tHit < EPS) return null;
-  return tHit;
-}
-
+// Share the fork's watertight triangle kernel with rendering. Containment and
+// surface sampling must not silently apply a different minimum feature size.
 function traverse(
   node: BVHNode,
-  triangles: BVHTriangle[],
-  origin: { x: number; y: number; z: number },
-  dir: { x: number; y: number; z: number },
+  triangles: ln.Triangle[],
+  ray: ln.Ray,
   tMin: number,
   tMax: number,
   out: { t: number; triIdx: number }[],
 ) {
-  const slab = rayAABB(origin, dir, node.aabb, tMin, tMax);
+  const slab = rayAABB(ray.origin, ray.direction, node.aabb, tMin, tMax);
   if (!slab) return;
   if (node.left === null && node.right === null) {
     for (const i of node.triIdx) {
-      const t = rayTri(origin, dir, triangles[i]);
-      if (t !== null && t > tMin && t < tMax) out.push({ t, triIdx: i });
+      const hit = triangles[i].intersect(ray, tMin, tMax);
+      if (hit.ok()) out.push({ t: hit.t, triIdx: i });
     }
     return;
   }
-  if (node.left) traverse(node.left, triangles, origin, dir, tMin, tMax, out);
-  if (node.right) traverse(node.right, triangles, origin, dir, tMin, tMax, out);
+  if (node.left) traverse(node.left, triangles, ray, tMin, tMax, out);
+  if (node.right) traverse(node.right, triangles, ray, tMin, tMax, out);
 }
 
 // Convenience: build BVH from ln.Triangle[]

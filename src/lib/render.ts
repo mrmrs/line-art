@@ -1,6 +1,7 @@
 // Public renderer API. UI code communicates with workers instead of importing this module.
 export {
   renderScene,
+  renderNavigationPreview,
   renderScenePerPen,
   computeProjectedPaths,
   clearMeshCache,

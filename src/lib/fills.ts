@@ -37,6 +37,16 @@ export function buildFillHost(triangles: ln.Triangle[]): FillHost {
 // Generate fill paths in world space.
 export function generateFillPaths(fill: FillConfig, host: FillHost): ln.Paths {
   if (!fill.enabled) return [];
+  if (fill.faceAxis && fill.faceAxis !== 'all' &&
+      (fill.type === 'surface-hatch' || (fill.type === 'stipple' && fill.surfaceMode))) {
+    const axis = fill.faceAxis;
+    // Retain the full host BVH for visibility; only restrict sampling faces.
+    host = { ...host, triangles: host.triangles.filter(t => {
+      const normal = t.v2.sub(t.v1).cross(t.v3.sub(t.v1));
+      const largest = Math.max(Math.abs(normal.x), Math.abs(normal.y), Math.abs(normal.z));
+      return largest > 1e-12 && Math.abs(normal[axis]) >= largest - 1e-12;
+    }) };
+  }
   switch (fill.type) {
     case 'cross-hatch':
       return crossHatch(fill, host);
@@ -469,6 +479,8 @@ export class FillShape {
     void _f;
     return false; // Fills don't occlude other shapes
   }
+
+  occlusionTriangles(): ln.Triangle[] { return []; }
 
   intersect(_r: ln.Ray): typeof ln.NoHit {
     void _r;

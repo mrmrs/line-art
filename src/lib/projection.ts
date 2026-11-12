@@ -41,68 +41,41 @@ export function projectPaths(
   eye: ln.Vector,
   width: number,
   height: number,
-  step: number,
+  _step: number,
   scene?: ln.Scene,
   budget = { samples: 0 },
+  options: ln.VisibilityOptions = {},
 ): ln.Paths {
-  const output: ln.Paths = [];
-  const project = (p: ln.Vector) => {
-    const q = matrix.mulPositionW(p);
-    return new ln.Vector(((q.x + 1) * width) / 2, ((q.y + 1) * height) / 2, 0);
-  };
-  for (const path of paths) {
-    let stroke: ln.Vector[] = [];
-    const flush = () => {
-      if (stroke.length > 1) output.push(stroke);
-      stroke = [];
-    };
-    for (let i = 1; i < path.length; i++) {
-      const segment = clipSegment(path[i - 1], path[i], matrix);
-      if (!segment) {
-        flush();
-        continue;
-      }
-      const [a, b] = segment;
-      const count = scene ? Math.max(1, Math.ceil(a.distance(b) / step)) : 1;
-      budget.samples += count + 1;
-      if (budget.samples > LIMITS.samples)
-        throw new Error(
-          'Render sample budget exceeded; increase render step or reduce geometry',
-        );
-      // Keep visibility runs connected while preserving gaps and clipping.
-      for (let j = 0; j <= count; j++) {
-        const point = lerp(a, b, j / count);
-        if (scene && !scene.visible(eye, point)) {
-          flush();
-          continue;
-        }
-        const screen = project(point);
-        if (!Number.isFinite(screen.x) || !Number.isFinite(screen.y)) {
-          flush();
-          continue;
-        }
-        const last = stroke[stroke.length - 1];
-        if (j === 0 && last && last.distance(screen) > 1e-7) flush();
-        if (!last || last.distance(screen) > 1e-9) {
-          const prev = stroke[stroke.length - 2];
-          if (
-            prev &&
-            Math.abs(
-              (last.x - prev.x) * (screen.y - last.y) -
-                (last.y - prev.y) * (screen.x - last.x),
-            ) < 1e-9 &&
-            (last.x - prev.x) * (screen.x - last.x) +
-              (last.y - prev.y) * (screen.y - last.y) >=
-              0
-          )
-            stroke[stroke.length - 1] = screen;
-          else stroke.push(screen);
-        }
-      }
-    }
-    flush();
-    if (output.length > LIMITS.paths)
-      throw new Error('Projected path budget exceeded');
-  }
+  if (!paths.length) return [];
+  const orthographic = matrix.x30 === 0 && matrix.x31 === 0 && matrix.x32 === 0;
+  const inverse = matrix.inverse();
+  const direction = inverse
+    .mulPositionW(new ln.Vector(0, 0, -1))
+    .sub(inverse.mulPositionW(new ln.Vector(0, 0, 1)))
+    .normalize();
+  const visibility = scene
+    ? new ln.Visibility(scene, matrix, eye, width, height, {
+        orthographic,
+        direction,
+        maxTests: LIMITS.samples * 10,
+        maxTriangles: LIMITS.triangles * 10,
+        ...options,
+      })
+    : undefined;
+  const output = ln.renderPaths(
+    paths,
+    matrix,
+    width,
+    height,
+    visibility,
+    LIMITS.vertices,
+  );
+  budget.samples += visibility
+    ? visibility.stats.tests + visibility.stats.fallbackRays
+    : output.length;
+  if (budget.samples > LIMITS.samples * 10)
+    throw new Error('Occlusion work budget exceeded');
+  if (output.length > LIMITS.paths)
+    throw new Error('Projected path budget exceeded');
   return output;
 }

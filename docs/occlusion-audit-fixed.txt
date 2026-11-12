@@ -1,0 +1,48 @@
+OK scaled cube world hit distance
+  expected: 8
+  actual:   8
+OK scaled cube beyond the eye must not occlude
+  expected: true
+  actual:   true
+OK cylinder top cap
+  expected: 1
+  actual:   1
+OK cone base before side wall
+  expected: 1
+  actual:   1
+OK parallel ray on box boundary has finite interval
+  expected: [ 2, 4 ]
+  actual:   [ 2, 4 ]
+OK parallel ray on cube boundary hits face edge
+  expected: 2
+  actual:   2
+OK CSG intersection preserves distance after skipping first boundary
+  expected: 3
+  actual:   3
+OK CSG union contains interior point
+  expected: true
+  actual:   true
+OK small sphere blocks a ray through its center
+  expected: false
+  actual:   false
+OK small triangle blocks a perpendicular ray
+  expected: 1
+  actual:   1
+OK 3D squared length
+  expected: 9
+  actual:   9
+OK orthographic point behind a directly aligned blocker is hidden
+  expected: false
+  actual:   false
+  parallel reference hit: 4
+METRIC primitive tests beyond the eye: 0 (a bounded query can reject the root box)
+OK thin occluder splits a line even when between coarse samples
+  expected: 2
+  actual:   2
+  hidden interior point: true
+  fine-step output paths: 2
+OK height field surface exactly on box boundary
+  expected: 2
+  actual:   2
+
+0 diagnostic mismatches. All mismatches must be resolved before accepting the fork.

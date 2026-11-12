@@ -679,3 +679,277 @@ test('heightmap octave work is bounded before generation', () => {
   const node = { ...cube({}), type: 'cube-grid', params: { ...DEFAULT_CUBE_GRID_PARAMS, heightmapOctaves: 1000000000 } };
   assert.throws(() => validateNodes([node]), /heightmapOctaves/);
 });
+
+test("continuous occlusion handles thin blockers, orthographic rays and height-field boundary roots", () => {
+  const { projectPaths } = require(
+    `${process.env.AUDIT_TEST_OUTPUT}/projection.js`,
+  );
+  const { HeightField } = require(
+    `${process.env.AUDIT_TEST_OUTPUT}/height-field.js`,
+  );
+  const v = (x, y, z) => new ln.Vector(x, y, z);
+  const eye = v(0, 0, 10);
+  const matrix = ln
+    .lookAt(eye, v(0, 0, 0), v(0, 1, 0))
+    .orthographic(-2, 2, -2, 2, 0.1, 100);
+  const scene = new ln.Scene();
+  scene.add(new ln.Cube(v(0.049, -0.1, 0.9), v(0.051, 0.1, 1.1)));
+  scene.compile();
+  const paths = projectPaths(
+    [[v(-1, 0, 0), v(1, 0, 0)]],
+    matrix,
+    eye,
+    800,
+    800,
+    0.1,
+    scene,
+  );
+  assert.equal(paths.length, 2);
+  assert.ok(Math.abs(paths[0].at(-1).x - 409.8) < 1e-8);
+  assert.ok(Math.abs(paths[1][0].x - 410.2) < 1e-8);
+  const field = new HeightField(
+    () => 0,
+    new ln.Box(v(-1, -1, 0), v(1, 1, 2)),
+    false,
+  );
+  assert.ok(
+    Math.abs(field.intersect(new ln.Ray(v(0.2, 0.3, 2), v(0, 0, -1))).t - 2) <
+      1e-8,
+  );
+});
+
+test('SVG serialization drops fragments that collapse to a dot', () => {
+  const { toStyledSVG, multiPenSvg } = load('svg-output.js');
+  const paths = [[new ln.Vector(1, 1, 0), new ln.Vector(1 + 1e-9, 1, 0)]];
+  assert.ok(!toStyledSVG(paths, 100, 100, settings).includes('<polyline'));
+  assert.ok(!multiPenSvg([{ pen: 1, paths }], 100, 100, settings).includes('<polyline'));
+});
+
+test('vendored Boolean clipping preserves subpixel windows through app projection', () => {
+  const { projectPaths } = load('projection.js');
+  const v = (x, y, z) => new ln.Vector(x, y, z);
+  const eye = v(0, 0, 10);
+  const matrix = ln.lookAt(eye, v(0, 0, 0), v(0, 1, 0)).orthographic(-2, 2, -2, 2, 0.1, 100);
+  const scene = new ln.Scene();
+  scene.add(new ln.BooleanShape(ln.CSGOperation.Difference,
+    new ln.Cube(v(-1, -1, 1), v(1, 1, 2)),
+    new ln.Cube(v(0.051, -2, 0), v(0.051001, 2, 3))));
+  scene.compile();
+  const paths = projectPaths([[v(-1.5, 0, 0), v(1.5, 0, 0)]], matrix, eye, 800, 800, 100, scene);
+  assert.equal(paths.length, 3);
+  assert.ok(Math.abs(paths[1][0].x - 410.2) < 1e-9);
+  assert.ok(Math.abs(paths[1].at(-1).x - 410.2002) < 1e-9);
+});
+
+test('Boolean graph rendering is identical at Fast and Ultra curve tolerances', () => {
+  const a = { ...cube({ radius: 0.8, height: 1.5 }), id: 'cone', type: 'cone', fills: [] };
+  const b = { ...cube({ min: [0.05, -2, -1], max: [0.2, 2, 3] }), id: 'cutter', fills: [] };
+  const result = { ...a, id: 'result', type: 'boolean', params: { operation: 'difference', childIds: [a.id, b.id] } };
+  const fast = renderScene([a, b, result], camera, 320, 320, { ...settings, curveTolerance: 1 }).svg;
+  const ultra = renderScene([a, b, result], camera, 320, 320, { ...settings, curveTolerance: 0.025 }).svg;
+  assert.equal(fast, ultra);
+  assert.ok(fast.includes('polyline'));
+  assert.ok(!/NaN|Infinity/.test(fast));
+});
+
+test('vendored contour generation draws the new circular boundary of a cut', () => {
+  const { projectPaths } = load('projection.js');
+  const v = (x, y, z) => new ln.Vector(x, y, z);
+  const eye = v(0, 0, 5), matrix = ln.lookAt(eye, v(0, 0, 0), v(0, 1, 0)).orthographic(-2, 2, -2, 2, 0.1, 100);
+  const scene = new ln.Scene();
+  scene.add(new ln.BooleanShape(ln.CSGOperation.Difference,
+    new ln.Sphere(v(0, 0, 0), 1), new ln.Cube(v(-2, -2, 0.23), v(2, 2, 2))));
+  scene.compile();
+  const result = projectPaths(scene.paths(), matrix, eye, 800, 800, 0.1, scene);
+  const radius = 200 * Math.sqrt(1 - 0.23 ** 2);
+  assert.ok(result.some(path => path.length > 20 && path[0].distance(path.at(-1)) < 1e-7 &&
+    path.every(p => Math.abs(Math.hypot(p.x - 400, p.y - 400) - radius) < 1e-7)));
+});
+
+test('packed composition is repeatable, maintains physical clearance and protects quiet regions', () => {
+  const { packComposition, footprint, quietFootprints } = load('composition.js');
+  const { DEFAULT_COMPOSITION } = load('composition-types.js');
+  const p = { ...DEFAULT_COMPOSITION, nesting: false, widthMm: 140, heightMm: 180, density: .6,
+    motifs: ['prism', 'orb', 'frame', 'steps', 'cut-orb'],
+    quiet: [{ id: 'clearing', x: 55, y: 65, width: 30, height: 40 }] };
+  const a = packComposition(p), b = packComposition(p);
+  assert.deepEqual(a, b);
+  assert.ok(a.instances.length > 20);
+  const polygons = a.instances.map(footprint);
+  // Independent segment-distance oracle, rather than reusing the solver SAT.
+  function pointSegment(p, a, b) {
+    const dx=b[0]-a[0], dy=b[1]-a[1];
+    const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy)));
+    return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
+  }
+  function inside(p, poly) {
+    let c=false;
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++) {
+      const a=poly[i],b=poly[j];
+      if((a[1]>p[1])!==(b[1]>p[1]) && p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])c=!c;
+    }
+    return c;
+  }
+  for (let i=0;i<polygons.length;i++) {
+    const poly=polygons[i];
+    for(const [x,y] of poly) assert.ok(x>=p.marginMm && y>=p.marginMm && x<=p.widthMm-p.marginMm && y<=p.heightMm-p.marginMm);
+    for(const other of [...polygons.slice(i+1),...quietFootprints(p)]) {
+      assert.ok(!inside(poly[0],other) && !inside(other[0],poly));
+      for(const [from,to] of [[poly,other],[other,poly]]) for(const v of from) for(let j=0;j<to.length;j++)
+        assert.ok(pointSegment(v,to[j],to[(j+1)%to.length])>=p.clearanceMm-1e-7);
+    }
+  }
+  console.log('Packing fixture:', a.instances.length, 'forms, coverage', a.coverage.toFixed(3), 'attempts', a.attempts);
+});
+
+test('packing preserves pinned instances, refill preserves all originals, and invalid pins fail without mutation', () => {
+  const { packComposition } = load('composition.js');
+  const { DEFAULT_COMPOSITION } = load('composition-types.js');
+  const p = { ...DEFAULT_COMPOSITION, widthMm: 120, heightMm: 160, density: .3 };
+  const initial = packComposition(p).instances;
+  const pinned = { ...initial[0], pinned: true };
+  const next = packComposition({ ...p, seed: 200, instances: [pinned] });
+  assert.deepEqual(next.instances.find(i => i.id === pinned.id), pinned);
+  const filled = packComposition({ ...p, density: .6, instances: initial }, true);
+  assert.ok(filled.instances.length > initial.length);
+  for(const i of initial) assert.deepEqual(filled.instances.find(x=>x.id===i.id),i);
+  const before=JSON.stringify(pinned);
+  assert.throws(()=>packComposition({...p, widthMm:40, instances:[pinned]}), /Kept forms/);
+  assert.equal(JSON.stringify(pinned),before);
+});
+
+test('composition silhouettes contain transformed geometry and render through the standard plot pipeline', () => {
+  const { footprint, compositionCamera, COMPOSITION_SCALE } = load('composition.js');
+  const { compositionShapes } = load('composition-geometry.js');
+  const { DEFAULT_COMPOSITION } = load('composition-types.js');
+  for(const motif of ['prism','orb','cut-orb','frame','steps']) {
+    const i={id:motif,motif,x:60,y:80,size:30,aspect:3,depth:.7,angle:.4,tilt:.6,pinned:false};
+    const p={...DEFAULT_COMPOSITION,widthMm:120,heightMm:160,instances:[i]};
+    const poly=footprint(i);
+    for(const shape of compositionShapes(p)) for(const path of shape.paths()) for(const v of path) {
+      const x=v.x/COMPOSITION_SCALE+p.widthMm/2,y=v.y/COMPOSITION_SCALE+p.heightMm/2;
+      for(let j=0;j<poly.length;j++) {
+        const a=poly[j],b=poly[(j+1)%poly.length];
+        assert.ok((b[0]-a[0])*(y-a[1])-(b[1]-a[1])*(x-a[0])>=-1e-6,`${motif} escaped footprint`);
+      }
+    }
+    const node={id:'packed',type:'packed-composition',name:'Composition',params:p,visible:true,transform:DEFAULT_TRANSFORM,slicing:DEFAULT_SLICING};
+    const result=renderScene([node],compositionCamera(p),300,400,settings);
+    assert.ok(result.pathCount>0,motif);
+    assert.ok(!result.svg.includes('NaN'));
+    const { serializeScene, parseScene }=load('scene-file.js');
+    const { CAMERA_PRESETS }=load('cameras.js');
+    const saved={nodes:[node],cameras:CAMERA_PRESETS,renderSettings:settings,viewMode:'single',activeCameraIndex:0};
+    assert.deepEqual(parseScene(serializeScene(saved)).nodes[0].params,p);
+  }
+});
+
+test('composition validation bounds imported recipes and rejects malformed instances', () => {
+  const { validateComposition }=load('composition.js');
+  const { DEFAULT_COMPOSITION }=load('composition-types.js');
+  for(const patch of [{seed:NaN},{version:2},{maxInstances:2000},{motifs:['missing']},{clearanceMm:0},{quiet:[{id:'x',x:0,y:0,width:9999,height:10}]}])
+    assert.throws(()=>validateComposition({...DEFAULT_COMPOSITION,...patch}));
+});
+
+
+test('composition curves bound paper chord error while avoiding default sphere oversampling', () => {
+  const { compositionShapes } = load('composition-geometry.js');
+  const { compositionResolution } = load('composition.js');
+  const { DEFAULT_COMPOSITION } = load('composition-types.js');
+  for (const size of [2, 38, 300]) {
+    const i = { id: 'orb', motif: 'orb', x: 1000, y: 1000, size, aspect: 6, depth: 1.5, angle: .9, tilt: .7, pinned: false };
+    const p = { ...DEFAULT_COMPOSITION, widthMm: 2000, heightMm: 2000, instances: [i] };
+    const shape = compositionShapes(p)[0];
+    const paths = shape.shape.paths();
+    for (let k=0;k<paths.length;k++) for (let j=1;j<paths[k].length;j++) {
+      const path=paths[k];
+      // Each sampled circle has constant speed. Its midpoint sagitta is bounded
+      // by the transformed unit-sphere radius even for the smaller latitudes.
+      const chord = path[j].sub(path[j-1]).length();
+      const radius = size * Math.sqrt(i.aspect) / 2;
+      const localRadius = k < p.detail ? Math.hypot(path[0].x,path[0].y) : 1;
+      assert.ok(radius * (localRadius - Math.sqrt(localRadius*localRadius - chord*chord/4)) <= .01000001);
+    }
+    if(size === 38) assert.ok(paths.reduce((n,p)=>n+p.length,0)<2500);
+  }
+  for(const [widthMm,heightMm] of [[40,2000],[2000,40],[210,297]]) {
+    const resolution = compositionResolution({...DEFAULT_COMPOSITION,widthMm,heightMm});
+    assert.ok(Math.max(resolution.width,resolution.height)<=1200.000001);
+    assert.ok(Math.abs(resolution.width/resolution.height-widthMm/heightMm)<1e-10);
+  }
+});
+
+test('navigation preview is bounded, evenly sampled and preserves original segments', () => {
+  const { renderNavigationPreview } = load('render.js');
+  const { DEFAULT_SVG_EXTRUDE_PARAMS } = load('types.js');
+  const segments = 18000;
+  const node = { ...cube({}), id: 'navigation-dense', type: 'svg-extrude', fills: [],
+    params: { ...DEFAULT_SVG_EXTRUDE_PARAMS, importMode: 'lines', fitToSize: 4,
+      bounds: { minX: -2, maxX: 2, minY: -1, maxY: 1 },
+      polylines: [Array.from({ length: segments + 1 }, (_, j) => [-2 + 4 * j / segments, j % 2 ? 1 : -1])] } };
+  const nodes = [node, { ...node, id: 'navigation-dense-occluded', pathVisibility: 'occluded' }],
+    view = { ...camera, eye: [0, 0, 6], up: [0, 1, 0], zoom: 1 };
+  const first = renderNavigationPreview(nodes, view, 800, 400, settings);
+  const warm = renderNavigationPreview(nodes, view, 800, 400, settings);
+  assert.equal(first.svg, warm.svg, 'cached sampling must be deterministic');
+  assert.equal(first.pathCount, 6000, 'the dense fixture should fully exercise one scene-wide segment budget');
+  assert.equal((first.svg.match(/<path /g) ?? []).length, 1, 'preview should batch its SVG DOM');
+  const edges = [...first.svg.matchAll(/M([\d.-]+),([\d.-]+)L([\d.-]+),([\d.-]+)/g)]
+    .map(m => m.slice(1).map(Number));
+  assert.equal(edges.length, first.pathCount);
+  assert.ok(edges.flat().every(Number.isFinite));
+  for (const [x0, y0, x1, y1] of edges) {
+    assert.ok(Math.abs(x1 - x0) <= 0.03, 'sampling connected dropped polyline vertices into a fake chord');
+    assert.ok(Math.abs(y1 - y0) > 100, 'sample did not retain an original zigzag segment');
+  }
+  assert.ok(edges[0][0] < 267 && edges.at(-1)[2] > 533, 'sampling lost the ends of the scene extent');
+  const perspective = renderNavigationPreview(nodes, { ...view, ortho: false, zoom: 2 }, 800, 400, settings);
+  assert.ok(perspective.pathCount > 0 && perspective.pathCount <= 6000);
+  assert.doesNotMatch(perspective.svg, /NaN|Infinity/);
+  assert.throws(() => renderNavigationPreview(nodes, { ...view, eye: view.center }, 800, 400, settings), /Camera/);
+  assert.throws(() => renderNavigationPreview(nodes, view, 0, 400, settings), /Width/);
+});
+
+test('navigation preview includes every path channel and leaves exact rendering unchanged', () => {
+  const { renderNavigationPreview } = load('render.js');
+  const { DEFAULT_LINE_GRID_PARAMS } = load('types.js');
+  const host = { ...cube({ min: [-.6, -.6, -.6], max: [.6, .6, .6] }),
+    fills: [{ ...makeDefaultFill('cross-hatch', 'navigation-fill'), spacing: .4 }] };
+  const line = { ...cube({}), type: 'line-grid', fills: [], params: { ...DEFAULT_LINE_GRID_PARAMS,
+    countX: 2, countY: 2, spacing: .4, lineLength: .5, lineAxis: 'x' } };
+  const extra = { ...line, id: 'navigation-extra', pathVisibility: 'through',
+    transform: { ...DEFAULT_TRANSFORM, translate: [-2, 0, 0] } };
+  const occluded = { ...line, id: 'navigation-occluded', pathVisibility: 'occluded',
+    transform: { ...DEFAULT_TRANSFORM, translate: [2, 0, 0] } };
+  const nodes = [host, extra, occluded], view = { ...camera, orthoSize: 5 };
+  const exactBefore = renderScene(nodes, view, 320, 160, settings).svg;
+  const preview = renderNavigationPreview(nodes, view, 320, 160, settings);
+  const exactAfter = renderScene(nodes, view, 320, 160, settings).svg;
+  assert.equal(exactAfter, exactBefore, 'preview mutated exact geometry or visibility caches');
+  const standalone = nodes.map(node => renderNavigationPreview([node], view, 320, 160, settings).pathCount);
+  assert.equal(preview.pathCount, standalone.reduce((a, b) => a + b, 0), 'a prepared path channel was omitted');
+  assert.ok(standalone.every(count => count > 0));
+  const bare = renderNavigationPreview([{ ...host, fills: [] }], view, 320, 160, settings);
+  assert.ok(standalone[0] > bare.pathCount, 'the fill channel was omitted');
+  const frontal = { ...view, eye: [0, 0, 6], up: [0, 1, 0] };
+  const behind = { ...line, id: 'navigation-behind', pathVisibility: 'occluded',
+    params: { ...line.params, countX: 1, countY: 1 },
+    transform: { ...DEFAULT_TRANSFORM, translate: [0, 0, -2] } };
+  const solid = { ...host, fills: [] };
+  assert.equal(renderScene([solid, behind], frontal, 320, 160, settings).svg,
+    renderScene([solid], frontal, 320, 160, settings).svg, 'fixture needs a completely occluded line');
+  assert.equal(renderNavigationPreview([solid, behind], frontal, 320, 160, settings).pathCount,
+    renderNavigationPreview([solid], frontal, 320, 160, settings).pathCount + 1,
+    'navigation preview unexpectedly performed hidden-line removal');
+  for (const zoom of [.5, 1, 2]) {
+    const onlyDirect = [extra], zoomed = { ...view, zoom };
+    const exact = renderScene(onlyDirect, zoomed, 320, 160, settings).svg;
+    const navigation = renderNavigationPreview(onlyDirect, zoomed, 320, 160, settings).svg;
+    const exactEdges = [...exact.matchAll(/points="([^"]+)"/g)].map(m => m[1].split(' ').map(pair => pair.split(',').map(Number)));
+    const previewEdges = [...navigation.matchAll(/M([\d.-]+),([\d.-]+)L([\d.-]+),([\d.-]+)/g)]
+      .map(m => [[+m[1], +m[2]], [+m[3], +m[4]]]);
+    assert.equal(previewEdges.length, exactEdges.length);
+    exactEdges.forEach((edge, j) => edge.forEach((point, k) => point.forEach((value, axis) =>
+      assert.ok(Math.abs(value - previewEdges[j][k][axis]) <= .005001, 'preview and exact camera projections differ'))));
+  }
+});

@@ -1,0 +1,54 @@
+{
+  "node": "v24.15.0",
+  "method": "median of 5 measured renders after one warm-up; 800px orthographic; default tolerances",
+  "results": [
+    {
+      "fixture": "subpixel slit",
+      "engine": "0.6.0 sampling",
+      "ms": 7.63,
+      "paths": 128,
+      "vertices": 256,
+      "fallbackRays": 77312
+    },
+    {
+      "fixture": "subpixel slit",
+      "engine": "0.7.0 events",
+      "ms": 4.69,
+      "paths": 192,
+      "vertices": 384,
+      "fallbackRays": 0
+    },
+    {
+      "fixture": "sphere lens",
+      "engine": "0.6.0 sampling",
+      "ms": 48.68,
+      "paths": 128,
+      "vertices": 256,
+      "fallbackRays": 77330
+    },
+    {
+      "fixture": "sphere lens",
+      "engine": "0.7.0 events",
+      "ms": 1.14,
+      "paths": 128,
+      "vertices": 256,
+      "fallbackRays": 0
+    },
+    {
+      "fixture": "curved source",
+      "engine": "0.6.0 sampling",
+      "ms": 21.07,
+      "paths": 2227,
+      "vertices": 6952,
+      "fallbackRays": 73972
+    },
+    {
+      "fixture": "curved source",
+      "engine": "0.7.0 events",
+      "ms": 417.94,
+      "paths": 64,
+      "vertices": 3041,
+      "fallbackRays": 0
+    }
+  ]
+}

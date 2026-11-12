@@ -1,3 +1,4 @@
+import type { CompositionParams } from './composition-types';
 import type {
   SceneNode,
   CubeGridParams,
@@ -15,6 +16,7 @@ import type {
 
 export function nodeComplexity(node: SceneNode): string | null {
   switch (node.type) {
+    case 'packed-composition': return formatCount((node.params as CompositionParams).instances.length, 'forms');
     case 'cube-grid': {
       const p = node.params as CubeGridParams;
       const cells = p.dimensions === '3d'

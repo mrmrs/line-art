@@ -1,6 +1,11 @@
-import { renderScene } from './render';
+import { renderScene, renderNavigationPreview } from './render';
 import { LatestRender } from './latest-render';
-import type { SceneNode, CameraConfig, RenderSettings } from './types';
+import type {
+  SceneNode,
+  CameraConfig,
+  RenderSettings,
+  BooleanParams,
+} from './types';
 interface ViewRequest {
   type: 'render';
   id: number;
@@ -9,6 +14,7 @@ interface ViewRequest {
   width: number;
   height: number;
   settings: RenderSettings;
+  interactive?: boolean;
 }
 let scene: { nodes: SceneNode[]; revision: number } = {
   nodes: [],
@@ -17,19 +23,39 @@ let scene: { nodes: SceneNode[]; revision: number } = {
 const queue = new LatestRender<ViewRequest & { nodes: SceneNode[] }>(
   async (request, current) => {
     const { id, nodes, camera, width, height, settings } = request;
-    const step = Math.max(0.5, settings.step);
+    if (request.interactive) {
+      const preview = renderNavigationPreview(nodes, camera, width, height, settings);
+      if (current()) self.postMessage({ type: 'result', id, isFinal: true, ...preview });
+      return;
+    }
+    // Boolean operands use analytic events, even when their children are curved.
+    // Only standalone tessellated curves benefit from another tolerance pass.
+    const booleanChildren = new Set(
+      nodes.flatMap((n) =>
+        n.type === 'boolean' ? (n.params as BooleanParams).childIds : [],
+      ),
+    );
+    const needsRefinement = nodes.some(
+      (n) =>
+        n.visible &&
+        !booleanChildren.has(n.id) &&
+        (n.type === 'cone' || n.type === 'cylinder'),
+    );
+    const curveTolerance = needsRefinement
+      ? Math.max(1, settings.curveTolerance ?? 0.25)
+      : (settings.curveTolerance ?? 0.25);
     const draft = renderScene(nodes, camera, width, height, {
       ...settings,
-      step,
+      curveTolerance,
     });
     if (!current()) return;
     self.postMessage({
       type: 'result',
       id,
-      isFinal: step === settings.step,
+      isFinal: curveTolerance === (settings.curveTolerance ?? 0.25),
       ...draft,
     });
-    if (step === settings.step) return;
+    if (curveTolerance === (settings.curveTolerance ?? 0.25)) return;
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (!current()) return;
     const final = renderScene(nodes, camera, width, height, settings);

@@ -1,6 +1,7 @@
+import { DEFAULT_COMPOSITION } from '../lib/composition-types';
 import { useRef, useState } from 'react';
 import { useSceneStore } from '../lib/store';
-import { PRESETS } from '../lib/presets';
+import { PresetLibrary } from './PresetLibrary';
 import { DEFAULT_TRANSFORM } from '../lib/types';
 import { useFileLoader } from '../hooks/useFileLoader';
 import { DEFAULT_CUBE_GRID_PARAMS, DEFAULT_LINE_GRID_PARAMS, DEFAULT_PLANE_GRID_PARAMS, DEFAULT_AUTOMATA_GRID_PARAMS, DEFAULT_TEXT_EXTRUDE_PARAMS } from '../lib/types';
@@ -12,6 +13,7 @@ import { nodeComplexity } from '../lib/complexity';
 // =============================================================================
 
 const SHAPE_ICONS: Record<ShapeType, string> = {
+  'packed-composition': '◈',
   cube: '\u25FB',
   sphere: '\u25CB',
   cone: '\u25B3',
@@ -29,6 +31,7 @@ const SHAPE_ICONS: Record<ShapeType, string> = {
 };
 
 const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] = [
+  { type: 'packed-composition', name: 'Packed Composition', params: DEFAULT_COMPOSITION },
   {
     type: 'cube',
     name: 'Cube',
@@ -106,8 +109,6 @@ export function Sidebar() {
   const removeNode = useSceneStore((s) => s.removeNode);
   const removeNodes = useSceneStore((s) => s.removeNodes);
   const addNode = useSceneStore((s) => s.addNode);
-  const loadNodes = useSceneStore((s) => s.loadNodes);
-  const appendNodes = useSceneStore((s) => s.appendNodes);
   const clearScene = useSceneStore((s) => s.clearScene);
   const loadFiles = useFileLoader();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -245,41 +246,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Presets */}
-      <div className="sidebar-section">
-        <div className="sidebar-section-header">
-          <span>Presets</span>
-        </div>
-        <div className="preset-list">
-          {PRESETS.map((preset) => (
-            <div key={preset.name} className="preset-item-row">
-              <button
-                className="preset-item"
-                onClick={() => {
-                  appendNodes(preset.create());
-                }}
-                title={`Add ${preset.name} to scene`}
-              >
-                <span className="preset-icon">{preset.icon}</span>
-                <div className="preset-info">
-                  <span className="preset-name">{preset.name}</span>
-                  <span className="preset-desc">{preset.description}</span>
-                </div>
-              </button>
-              <button
-                className="btn-icon preset-replace-btn"
-                onClick={() => {
-                  clearScene();
-                  loadNodes(preset.create());
-                }}
-                title={`Replace scene with ${preset.name}`}
-              >
-                &#x21BB;
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
+      <PresetLibrary />
 
       {/* Import file */}
       <div className="sidebar-section sidebar-drop-hint">

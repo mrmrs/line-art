@@ -1,3 +1,5 @@
+import type { CompositionParams } from '../lib/composition-types';
+import { compositionCamera, compositionResolution } from '../lib/composition';
 import { useRef, useState } from 'react';
 import { useSceneStore, snapshotScene, reportError } from '../lib/store';
 import { serializeScene, parseScene } from '../lib/scene-file';
@@ -107,24 +109,34 @@ export function Toolbar() {
 
   const [exportOpen, setExportOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const paper = PAPER_SIZES[paperSize];
+  const packed = useSceneStore(s => s.nodes.find(n => n.id === s.selectedId && n.type === 'packed-composition'));
+  const packedParams = packed?.params as CompositionParams | undefined;
+  const paper = packedParams ? { w: compositionResolution(packedParams).width, h: compositionResolution(packedParams).height, physW: `${packedParams.widthMm}mm`, physH: `${packedParams.heightMm}mm` } : PAPER_SIZES[paperSize];
   const mm = (dimension: string) =>
     parseFloat(dimension) * (dimension.endsWith('in') ? 25.4 : 1);
 
   return (
     <header className="toolbar">
       <div className="toolbar-left">
-        <h1 className="toolbar-title">ln.studio</h1>
-        <span className="toolbar-subtitle">plotter art engine</span>
+        <svg className="studio-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Studio mark">
+          <defs>
+            <pattern id="studio-mark-stripes" patternUnits="userSpaceOnUse" width="2" height="2" patternTransform="rotate(-35)">
+              <rect width="1.25" height="2" fill="currentColor" />
+            </pattern>
+          </defs>
+          <path fill="url(#studio-mark-stripes)" d="M16 7 C13 7 2 9 2 16 C2 23 6 23 10 24 L11 28 L12 26 L20 26 L21 28 L22 24 C26 23 30 23 30 16 C30 9 19 7 16 7 M4 18 A4 4 0 0 1 12 18 A4 4 0 0 1 4 18 M20 18 A4 4 0 0 1 28 18 A4 4 0 0 1 20 18" />
+        </svg>
       </div>
 
       <div className="toolbar-center">
+        {!packed && <>
         <div className="toolbar-group">
           <label className="toolbar-label">View</label>
           <div className="button-group">
             {VIEW_MODES.map((m) => (
               <button
                 key={m.value}
+                disabled={!!packed}
                 className={`btn btn-sm ${viewMode === m.value ? 'active' : ''}`}
                 onClick={() => setViewMode(m.value)}
                 title={m.label}
@@ -137,6 +149,7 @@ export function Toolbar() {
 
         <div className="toolbar-divider" />
 
+        </>}
         <div className="toolbar-group">
           <label className="toolbar-label">Stroke</label>
           <input
@@ -183,15 +196,16 @@ export function Toolbar() {
           <label className="toolbar-label">Quality</label>
           <select
             className="input input-sm"
-            value={renderSettings.step}
+            aria-label="Visibility quality"
+            value={renderSettings.curveTolerance ?? 0.25}
             onChange={(e) =>
-              updateRenderSettings({ step: parseFloat(e.target.value) })
+              updateRenderSettings({ curveTolerance: parseFloat(e.target.value) })
             }
           >
-            <option value={0.1}>Draft (0.1)</option>
-            <option value={0.05}>Medium (0.05)</option>
-            <option value={0.01}>High (0.01)</option>
-            <option value={0.005}>Ultra (0.005)</option>
+            <option value={1}>Fast</option>
+            <option value={0.25}>Fine</option>
+            <option value={0.1}>Precise</option>
+            <option value={0.025}>Ultra</option>
           </select>
         </div>
 
@@ -201,12 +215,14 @@ export function Toolbar() {
           <label className="toolbar-label">Paper</label>
           <select
             className="input input-sm"
-            value={paperSize}
+            value={packedParams ? 'composition' : paperSize}
+            disabled={!!packedParams}
             onChange={(e) =>
               setPaperSize(e.target.value as keyof typeof PAPER_SIZES)
             }
             title="Export size"
           >
+            {packedParams && <option value="composition">{packedParams.widthMm} × {packedParams.heightMm} mm</option>}
             {Object.entries(PAPER_SIZES).map(([k, v]) => (
               <option key={k} value={k}>
                 {v.label}
@@ -296,6 +312,7 @@ export function Toolbar() {
           height={paper.h}
           pageWidthMm={mm(paper.physW)}
           pageHeightMm={mm(paper.physH)}
+          composition={packed && packedParams ? { nodes: [packed], camera: compositionCamera(packedParams), marginMm: packedParams.marginMm } : undefined}
           optimize={optimize}
           onClose={() => setExportOpen(false)}
         />

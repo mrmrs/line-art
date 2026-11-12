@@ -2,18 +2,7 @@ import { useCallback, useRef, useEffect, useState } from 'react';
 import type { CameraConfig } from '../lib/types';
 import { useSceneStore } from '../lib/store';
 import { useOrbitCamera } from '../hooks/useOrbitCamera';
-import { useWorkerRender } from '../hooks/useWorkerRender';
-
-// =============================================================================
-// Single viewport: renders the scene from one camera angle
-//
-// Performance strategy:
-//   1. Rendering happens in a Web Worker (never blocks UI)
-//   2. Scroll-to-zoom updates camera.zoom directly (persisted in store)
-//      with CSS scale() for instant visual feedback until re-render
-//   3. Orbit drag updates are RAF-throttled at 60fps
-//   4. Worker only processes the latest request, skipping stale frames
-// =============================================================================
+import { useWorkerRender, sameCameraView } from '../hooks/useWorkerRender';
 
 interface ViewportProps {
   cameraIndex: number;
@@ -22,181 +11,68 @@ interface ViewportProps {
 
 export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 400, height: 400 });
-
   const nodes = useSceneStore((s) => s.nodes);
-  const camera = useSceneStore((s) => s.cameras[cameraIndex]);
+  const storedCamera = useSceneStore((s) => s.cameras[cameraIndex]);
   const renderSettings = useSceneStore((s) => s.renderSettings);
   const updateCamera = useSceneStore((s) => s.updateCamera);
 
-  // --- Resize observer ---
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          setSize({ width: Math.floor(width), height: Math.floor(height) });
-        }
-      }
+    const element = containerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setSize(current => {
+        const next = { width: Math.floor(width), height: Math.floor(height) };
+        return next.width === current.width && next.height === current.height ? current : next;
+      });
     });
-    observer.observe(el);
+    observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
-  // --- Camera orbit (drag) ---
-  const handleCameraChange = useCallback(
-    (cam: CameraConfig) => updateCamera(cameraIndex, cam),
-    [cameraIndex, updateCamera],
-  );
-
-  const { isDragging, handlers: orbitHandlers } = useOrbitCamera(
-    camera,
-    handleCameraChange,
-  );
-
-  // --- CSS zoom state for instant feedback ---
-  const [cssScale, setCssScale] = useState(1);
-  const targetZoomRef = useRef(camera.zoom ?? 1);
-  const renderedZoomRef = useRef(camera.zoom ?? 1);
-  const zoomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-
-  // Keep target zoom in sync with external changes (e.g. from Properties panel)
-  useEffect(() => {
-    targetZoomRef.current = camera.zoom ?? 1;
-    renderedZoomRef.current = camera.zoom ?? 1;
-    const timer = setTimeout(() => setCssScale(1), 0);
-    return () => clearTimeout(timer);
-  }, [camera.zoom]);
-
-  // --- Worker render ---
-  const { svg, rendering, renderTimeMs, pathCount, error, cancel, retry } =
-    useWorkerRender(
-      nodes,
-      camera,
-      size.width,
-      size.height,
-      renderSettings,
-      isDragging,
-    );
-
-  // When new SVG arrives from worker, reset CSS zoom since render used current zoom
-  const prevSvgRef = useRef('');
-  useEffect(() => {
-    if (svg && svg !== prevSvgRef.current) {
-      prevSvgRef.current = svg;
-      renderedZoomRef.current = camera.zoom ?? 1;
-      const timer = setTimeout(() => setCssScale(1), 0);
-      return () => clearTimeout(timer);
-    }
-  }, [svg, camera.zoom]);
-
-  // --- Scroll-to-zoom: native listener with { passive: false } to allow preventDefault ---
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const cameraIndexRef = useRef(cameraIndex);
-  const updateCameraRef = useRef(updateCamera);
+  const commitCamera = useCallback((camera: CameraConfig) => updateCamera(cameraIndex, camera), [cameraIndex, updateCamera]);
+  const { camera, isDragging, isInteracting, handlers, handleWheel } = useOrbitCamera(storedCamera, commitCamera, size);
+  const { svg, rendering, renderTimeMs, pathCount, error, cancel, retry, renderedCamera, preview } =
+    useWorkerRender(nodes, camera, size.width, size.height, renderSettings, isInteracting);
 
   useEffect(() => {
-    cameraIndexRef.current = cameraIndex;
-    updateCameraRef.current = updateCamera;
-  }, [cameraIndex, updateCamera]);
+    const element = overlayRef.current;
+    if (!element) return;
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => element.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
-  useEffect(() => {
-    const el = overlayRef.current;
-    if (!el) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      // Scroll up = zoom in (increase zoom), scroll down = zoom out
-      const factor = e.deltaY > 0 ? 0.92 : 1.08;
-      targetZoomRef.current = Math.max(
-        0.01,
-        Math.min(50, targetZoomRef.current * factor),
-      );
-
-      // Instant CSS scale feedback: ratio of target to what's currently rendered
-      const rendered = renderedZoomRef.current;
-      setCssScale(targetZoomRef.current / rendered);
-
-      // Debounce the actual camera update to batch rapid scrolls
-      if (zoomTimer.current) clearTimeout(zoomTimer.current);
-      zoomTimer.current = setTimeout(() => {
-        updateCameraRef.current(cameraIndexRef.current, {
-          zoom: targetZoomRef.current,
-        });
-      }, 60);
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-      clearTimeout(zoomTimer.current);
-    };
-  }, []);
-
+  // Compensate only against the camera that produced the displayed SVG. A
+  // document commit must not remove feedback while its render is still pending.
+  // Perspective zoom moves the eye: different depths scale differently, so a
+  // flat CSS scale would jump when the correctly projected preview arrives.
+  const cssScale = camera.ortho && renderedCamera && sameCameraView(camera, renderedCamera)
+    ? (camera.zoom ?? 1) / (renderedCamera.zoom ?? 1) : 1;
   const currentZoom = camera.zoom ?? 1;
 
   return (
-    <div className="viewport" ref={containerRef}>
-      {/* Orbit + zoom interaction overlay */}
-      <div
-        className="viewport-overlay"
-        ref={overlayRef}
-        {...orbitHandlers}
-        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
-      />
-
-      {/* SVG output with CSS zoom transform */}
-      <div
-        className="viewport-svg"
-        style={{
-          transform: cssScale !== 1 ? `scale(${cssScale})` : undefined,
-          transformOrigin: 'center center',
-          transition: cssScale === 1 ? 'transform 0.08s ease-out' : undefined,
-        }}
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-
-      {/* Camera label */}
+    <div className="viewport" ref={containerRef} style={{ background: renderSettings.backgroundColor }}>
+      <div className="viewport-overlay" ref={overlayRef} {...handlers}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }} />
+      <div className="viewport-svg" data-preview={preview ? 'true' : 'false'}
+        style={{ transform: cssScale !== 1 ? `scale(${cssScale})` : undefined, transformOrigin: 'center center' }}
+        dangerouslySetInnerHTML={{ __html: svg }} />
       {showLabel && (
         <div className="viewport-label">
           <span className="viewport-camera-name">{camera.name}</span>
           {camera.ortho && <span className="viewport-badge">Ortho</span>}
-          {currentZoom !== 1 && (
-            <span className="viewport-badge">{currentZoom.toFixed(1)}x</span>
-          )}
+          {currentZoom !== 1 && <span className="viewport-badge">{currentZoom.toFixed(1)}x</span>}
         </div>
       )}
-
-      {/* Stats */}
       <div className="viewport-stats">
-        {rendering && (
-          <>
-            <span className="viewport-rendering">rendering</span>
-            <button className="btn btn-xs" onClick={cancel}>
-              Cancel
-            </button>
-          </>
-        )}
-        {error && (
-          <span role="alert">
-            {error}{' '}
-            <button className="btn btn-xs" onClick={retry}>
-              Retry
-            </button>
-          </span>
-        )}
-        {!rendering && (
-          <span>
-            {pathCount} paths &middot; {renderTimeMs.toFixed(0)}ms
-          </span>
-        )}
+        {preview && <span className="viewport-preview">Wireframe preview</span>}
+        {rendering && <><span className="viewport-rendering">rendering</span>
+          <button className="btn btn-xs" onClick={cancel}>Cancel</button></>}
+        {error && <span role="alert">{error}{' '}<button className="btn btn-xs" onClick={retry}>Retry</button></span>}
+        {!rendering && <span>{pathCount} paths &middot; {renderTimeMs.toFixed(0)}ms</span>}
       </div>
     </div>
   );

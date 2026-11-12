@@ -1,3 +1,4 @@
+import type { CompositionParams } from './composition-types';
 // =============================================================================
 // Core Types for the ln.js Plotter Art Studio
 // =============================================================================
@@ -21,6 +22,7 @@ export const DEFAULT_TRANSFORM: TransformParams = {
 // --- Shape Types ---
 
 export type ShapeType =
+  | 'packed-composition'
   | 'cube'
   | 'sphere'
   | 'cone'
@@ -425,6 +427,8 @@ export interface FillConfig {
   axis: 'x' | 'y' | 'z';
   crossHatchAxes: ('x' | 'y' | 'z')[]; // for 3D cross-hatch; subset of {x,y,z}
 
+  // Surface patterns may target a family of world-space faces.
+  faceAxis?: 'all' | 'x' | 'y' | 'z';
   // surface-hatch
   angleDeg: number; // in-plane rotation per face
 
@@ -455,6 +459,7 @@ export function makeDefaultFill(type: FillType, id: string): FillConfig {
 }
 
 export type ShapeParams =
+  | CompositionParams
   | CubeParams
   | SphereParams
   | ConeParams
@@ -517,7 +522,9 @@ export interface CameraConfig {
 export type ViewMode = 'single' | '1x2' | '2x2' | '3x2';
 
 export interface RenderSettings {
+  /** Legacy sampling setting retained for saved scene compatibility. */
   step: number;
+  curveTolerance?: number;
   strokeWidth: number;
   strokeColor: string;
   backgroundColor: string;
@@ -527,6 +534,7 @@ export interface RenderSettings {
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   step: 0.1,
+  curveTolerance: 0.25,
   strokeWidth: 1,
   strokeColor: '#000000',
   backgroundColor: '#ffffff',

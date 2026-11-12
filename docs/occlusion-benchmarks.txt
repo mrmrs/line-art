@@ -1,0 +1,56 @@
+{
+  "node": "v24.15.0",
+  "rays": 5000,
+  "repetitions": 5,
+  "results": [
+    {
+      "fixture": "dense cubes",
+      "engine": "upstream",
+      "buildMs": 1.37,
+      "queryMs": 2.34,
+      "primitiveCalls": 66852,
+      "hidden": 3939
+    },
+    {
+      "fixture": "dense cubes",
+      "engine": "fork",
+      "buildMs": 5.34,
+      "queryMs": 2.29,
+      "primitiveCalls": 11169,
+      "hidden": 3939
+    },
+    {
+      "fixture": "beyond camera",
+      "engine": "upstream",
+      "buildMs": 0.75,
+      "queryMs": 0.67,
+      "primitiveCalls": 20000,
+      "hidden": 0
+    },
+    {
+      "fixture": "beyond camera",
+      "engine": "fork",
+      "buildMs": 2.31,
+      "queryMs": 0.22,
+      "primitiveCalls": 0,
+      "hidden": 0
+    }
+  ]
+}
+{
+  "fixture": "216 cubes, 800px perspective, upstream step .01",
+  "renders": [
+    {
+      "engine": "upstream",
+      "medianMs": 113.35,
+      "paths": 1148,
+      "vertices": 172252
+    },
+    {
+      "engine": "fork",
+      "medianMs": 13.66,
+      "paths": 1353,
+      "vertices": 2706
+    }
+  ]
+}

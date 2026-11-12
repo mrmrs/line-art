@@ -1,0 +1,78 @@
+import { test, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+
+test('packed composition generates, preserves pins, refills, reloads and exports at physical size', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: '◈ Packed Composition', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Packed composition' })).toBeVisible();
+  await page.locator('.compose-generate').getByRole('button', { name: 'Generate composition', exact: true }).click();
+  await expect.poll(() => page.locator('.compose-hit').count(), { timeout: 30000 }).toBeGreaterThan(20);
+  await expect.poll(() => page.locator('.compose-art polyline').count(), { timeout: 30000 }).toBeGreaterThan(50);
+  const snapshot = () => page.evaluate(async () => {
+    const { useSceneStore } = await import('/src/lib/store.ts');
+    return useSceneStore.getState().nodes.find(n => n.type === 'packed-composition')!.params;
+  });
+  const original = await snapshot();
+  await page.locator('.compose-hit').first().focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Keep selected', exact: true }).click();
+  await page.getByLabel('Seed', { exact: true }).fill('98');
+  await page.locator('.compose-generate').getByRole('button', { name: 'Generate composition', exact: true }).click();
+  await expect(page.locator('.compose-generate [role=status]')).toContainText('footprint coverage', { timeout: 30000 });
+  const changed = await snapshot() as typeof original & { instances: { id: string; pinned: boolean }[] };
+  expect(changed.instances[0]).toEqual({ ...(original as typeof changed).instances[0], pinned: true });
+  const kept = changed.instances[0];
+  await page.getByLabel('Target coverage').fill('0.7');
+  await page.getByRole('button', { name: 'Refill gaps', exact: true }).click();
+  await expect(page.locator('.compose-generate [role=status]')).toContainText('footprint coverage', { timeout: 30000 });
+  const filled = await snapshot() as typeof changed;
+  expect(filled.instances.find(i => i.id === kept.id)).toEqual(kept);
+  expect(filled.instances.length).toBeGreaterThanOrEqual(changed.instances.length);
+  await page.screenshot({ path: 'tests/browser/packed-composition.png', fullPage: true });
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.locator('.scene-tree-item').filter({ hasText: 'Packed Composition' }).click();
+  expect(await snapshot()).toEqual(filled);
+  await page.getByRole('button', { name: 'Export composition', exact: true }).click();
+  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
+  await expect(page.getByText('SVG ready', { exact: true })).toBeVisible({ timeout: 45000 });
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
+  const download = await downloadPromise;
+  const svg = await readFile((await download.path())!, 'utf8');
+  expect(svg).toMatch(/width="210mm"/);
+  expect(svg).toMatch(/height="297mm"/);
+  expect(svg).not.toMatch(/NaN|Infinity/);
+  expect(svg).toContain('<polyline');
+  expect(errors).toEqual([]);
+});
+
+
+test('curved recipe renders with quiet space and detail edits preserve placement', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: '◈ Packed Composition', exact: true }).click();
+  await page.getByRole('button', { name: /Orbital reliquary/ }).click();
+  await page.getByLabel('Quiet region', { exact: true }).selectOption('center');
+  await page.getByLabel('Target coverage', { exact: true }).fill('0.35');
+  await page.locator('.compose-generate').getByRole('button', { name: 'Generate composition', exact: true }).click();
+  await expect.poll(() => page.locator('.compose-hit').count()).toBeGreaterThan(10);
+  await expect(page.locator('.compose-generate [role=status]')).toContainText('footprint coverage');
+  await expect.poll(() => page.locator('.compose-art polyline').count(), { timeout: 30000 }).toBeGreaterThan(50);
+  await expect(page.getByRole('button', { name: 'Cancel preview' })).toHaveCount(0, { timeout: 30000 });
+  const before = await page.locator('.compose-hit').evaluateAll(elements => elements.map(e => e.getAttribute('d')));
+  const paths = await page.locator('.compose-art polyline').count();
+  await page.getByLabel('Surface detail', { exact: true }).fill('9');
+  await expect.poll(() => page.locator('.compose-art polyline').count(), { timeout: 30000 }).toBeGreaterThan(paths);
+  expect(await page.locator('.compose-hit').evaluateAll(elements => elements.map(e => e.getAttribute('d')))).toEqual(before);
+  await expect(page.locator('.compose-quiet')).toHaveCount(1);
+  await expect(page.locator('.compose-error')).toHaveCount(0);
+  await page.screenshot({ path: 'tests/browser/packed-curves.png', fullPage: true });
+  await page.getByRole('button', { name: 'Export composition', exact: true }).click();
+  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
+  await expect(page.getByText('SVG ready', { exact: true })).toBeVisible({ timeout: 45000 });
+  expect(errors).toEqual([]);
+});

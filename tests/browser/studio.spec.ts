@@ -4,7 +4,7 @@ test('scene reload, SVG modes, export and cancellation', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'ln.studio' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
   // Load a versioned scene through the actual file picker.
   const scene = await page.evaluate(async () => {
     const types = await import('/src/lib/types.ts');
@@ -127,7 +127,7 @@ test('six views reuse scene messages and measure worker heaps', async ({
     };
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'ln.studio' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
   await page.evaluate(async () => {
     const { useSceneStore } = await import('/src/lib/store.ts');
     const t = await import('/src/lib/types.ts');
@@ -233,7 +233,7 @@ test('text generation is lazy-loaded and invalid work reports a recoverable erro
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'ln.studio' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
   await page.getByRole('button', { name: 'T Text', exact: true }).click();
   await expect
     .poll(() => page.locator('.viewport-svg polyline').count(), {

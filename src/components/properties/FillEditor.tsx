@@ -1,3 +1,4 @@
+import { randomizeFill } from '../../lib/randomize';
 import { memo } from 'react';
 import type { FillConfig, FillType } from '../../lib/types';
 import { NumberInput, SelectInput, CheckboxInput } from './inputs';
@@ -83,6 +84,7 @@ const FillCard = memo(function FillCard({
     <div className="fill-card">
       <div className="fill-card-header">
         <span className="fill-card-type">{fillLabel(fill.type)}</span>
+        <button className="btn btn-xs btn-ghost" title="Randomize fill parameters" aria-label="Randomize fill parameters" onClick={() => onChange(randomizeFill(fill))}>↻</button>
         <CheckboxInput
           label=""
           value={fill.enabled}
@@ -135,6 +137,12 @@ const FillCard = memo(function FillCard({
             </div>
           </div>
         </>
+      )}
+
+      {(fill.type === 'surface-hatch' || (fill.type === 'stipple' && fill.surfaceMode)) && (
+        <SelectInput label="Faces (world)" value={fill.faceAxis ?? 'all'}
+          options={[{ value: 'all', label: 'All faces' }, { value: 'x', label: 'X sides' }, { value: 'y', label: 'Y sides' }, { value: 'z', label: 'Top / bottom' }]}
+          onChange={value => onChange({ faceAxis: value as FillConfig['faceAxis'] })} />
       )}
 
       {fill.type === 'surface-hatch' && (
