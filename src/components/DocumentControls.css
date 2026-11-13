@@ -7,6 +7,14 @@
   margin-bottom: 0;
 }
 
+.document-pair {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
 .document-row {
   display: flex;
   align-items: center;
@@ -23,11 +31,11 @@
 }
 
 .document-row-inputs .input {
-  width: 56px;
+  width: 44px;
 }
 
 .document-row > select {
-  width: 94px;
+  width: 70px;
 }
 
 .document-controls .paper-controls {

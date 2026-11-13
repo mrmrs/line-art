@@ -122,7 +122,7 @@ export const useViewSettings = create<ViewSettings>((set) => ({
     if (![widthMm, heightMm].every(value => Number.isFinite(value) && value >= MIN_PAPER_MM && value <= MAX_PAPER_MM)) return;
     set({ paperSize: 'custom', customWidthMm: widthMm, customHeightMm: heightMm, paperOrientation: widthMm > heightMm ? 'landscape' : 'portrait' });
   },
-  gridVisible: false, gridStyle: 'lines',
+  gridVisible: true, gridStyle: 'lines',
   gridSpacingMm: 10, gridColor: '#a1a1aa',
   setPaperSize: paperSize => {
     if (paperSize === 'custom') { set(state => ({ paperSize, paperOrientation: state.customWidthMm > state.customHeightMm ? 'landscape' : 'portrait' })); return; }

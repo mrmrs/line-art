@@ -15,20 +15,25 @@ export function DocumentControls() {
 
   return <section className="properties-section document-controls" aria-label="Document">
     <div className="properties-section-title">Document</div>
-    <div className="document-row">
-      <label htmlFor="document-stroke-width">Stroke</label>
-      <div className="document-row-inputs">
-        <input id="document-stroke-width" aria-label="Stroke width" type="number" className="input input-sm" value={settings.strokeWidth} min={0.1} max={5} step={0.1} onChange={event => {
-          const value = event.currentTarget.valueAsNumber;
-          if (Number.isFinite(value) && value >= 0.1 && value <= 5) updateSettings({ strokeWidth: value });
-        }} />
-        <input aria-label="Stroke color" type="color" className="input-color" value={settings.strokeColor} onChange={event => updateSettings({ strokeColor: event.target.value })} />
+    <div className="document-pair">
+      <div className="document-row">
+        <label htmlFor="document-stroke-width">Stroke</label>
+        <div className="document-row-inputs">
+          <input id="document-stroke-width" aria-label="Stroke width" type="number" className="input input-sm" value={settings.strokeWidth} min={0.1} max={5} step={0.1} onChange={event => {
+            const value = event.currentTarget.valueAsNumber;
+            if (Number.isFinite(value) && value >= 0.1 && value <= 5) updateSettings({ strokeWidth: value });
+          }} />
+          <input aria-label="Stroke color" type="color" className="input-color" value={settings.strokeColor} onChange={event => updateSettings({ strokeColor: event.target.value })} />
+        </div>
       </div>
+      <label className="document-row"><span>BG</span><input aria-label="BG color" type="color" className="input-color" value={settings.backgroundColor} onChange={event => updateSettings({ backgroundColor: event.target.value })} /></label>
     </div>
-    <label className="document-row"><span>Background</span><input aria-label="Background color" type="color" className="input-color" value={settings.backgroundColor} onChange={event => updateSettings({ backgroundColor: event.target.value })} /></label>
-    <label className="document-row"><span>Quality</span><select className="input input-sm" aria-label="Visibility quality" value={settings.curveTolerance ?? 0.25} onChange={event => updateSettings({ curveTolerance: Number(event.target.value) })}>
-      <option value={1}>Fast</option><option value={0.25}>Fine</option><option value={0.1}>Precise</option><option value={0.025}>Ultra</option>
-    </select></label>
+    <div className="document-pair">
+      <label className="document-row"><span>Quality</span><select className="input input-sm" aria-label="Visibility quality" value={settings.curveTolerance ?? 0.25} onChange={event => updateSettings({ curveTolerance: Number(event.target.value) })}>
+        <option value={1}>Fast</option><option value={0.25}>Fine</option><option value={0.1}>Precise</option><option value={0.025}>Ultra</option>
+      </select></label>
+      <label className="document-row document-optimize"><span>Optimize paths</span><input type="checkbox" checked={optimize} onChange={event => setOptimize(event.target.checked)} title="Reorder paths for shorter pen travel" /></label>
+    </div>
     <PaperControls key={packed?.id ?? 'scene'} composition={packed && params ? {
       widthMm: params.widthMm, heightMm: params.heightMm,
       onChange: (widthMm, heightMm) => updateNodeParams(packed.id, {
@@ -44,6 +49,5 @@ export function DocumentControls() {
         }),
       }),
     } : undefined} />
-    <label className="document-row document-optimize"><span>Optimize paths</span><input type="checkbox" checked={optimize} onChange={event => setOptimize(event.target.checked)} title="Reorder paths for shorter pen travel" /></label>
   </section>;
 }

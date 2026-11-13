@@ -17,7 +17,6 @@ export const FillEditor = memo(function FillEditor({ nodeId, fills }: Props) {
   return (
     <div className="property-grid">
       <div className="fill-add-row">
-        <span className="property-label">Add</span>
         <div className="fill-add-buttons">
           <button
             className="btn btn-xs"
@@ -50,15 +49,6 @@ export const FillEditor = memo(function FillEditor({ nodeId, fills }: Props) {
         </div>
       </div>
 
-      {fills.length === 0 && (
-        <div
-          className="property-row property-row-full"
-          style={{ opacity: 0.6, fontStyle: 'italic', fontSize: 10 }}
-        >
-          No fills. Add hatch / surface / dots / contour above.
-        </div>
-      )}
-
       {fills.map((fill) => (
         <FillCard
           key={fill.id}
@@ -85,10 +75,11 @@ const FillCard = memo(function FillCard({
       <div className="fill-card-header">
         <span className="fill-card-type">{fillLabel(fill.type)}</span>
         <button className="btn btn-xs btn-ghost" title="Randomize fill parameters" aria-label="Randomize fill parameters" onClick={() => onChange(randomizeFill(fill))}>↻</button>
-        <CheckboxInput
-          label=""
-          value={fill.enabled}
-          onChange={(v) => onChange({ enabled: v })}
+        <input
+          type="checkbox"
+          aria-label={`Enable ${fillLabel(fill.type)}`}
+          checked={fill.enabled}
+          onChange={event => onChange({ enabled: event.target.checked })}
         />
         <button
           className="btn btn-xs btn-ghost"

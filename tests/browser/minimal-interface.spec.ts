@@ -39,3 +39,31 @@ test('packed canvas uses the same neutral presentation and keeps editing in the 
   await expect(page.locator('.compose-workspace button')).toHaveCount(0);
   await page.screenshot({ path: 'tests/browser/minimal-packed.png' });
 });
+
+
+test('document pairs and every fill stay within the sidebar width', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '◻ Cube', exact: true }).click();
+  await expect(page.locator('.fill-add-row')).not.toContainText('Add');
+  await expect(page.getByText(/No fills\. Add/)).toHaveCount(0);
+  for (const name of ['Hatch', 'Surface', 'Dots', 'Contour']) {
+    await page.locator('.fill-add-buttons').getByRole('button', { name, exact: true }).click();
+  }
+  await expect(page.locator('.fill-card')).toHaveCount(4);
+  for (const width of [1280, 900]) {
+    await page.setViewportSize({ width, height: 900 });
+    const sidebar = page.locator('aside.properties');
+    expect(await sidebar.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    const pairs = page.locator('.document-pair');
+    for (const pair of await pairs.all()) {
+      const centers = await pair.locator(':scope > .document-row').evaluateAll(elements => elements.map(el => {
+        const rect = el.getBoundingClientRect();
+        return rect.y + rect.height / 2;
+      }));
+      expect(Math.abs(centers[0] - centers[1])).toBeLessThan(1);
+    }
+    expect(await page.locator('.fill-add-buttons, .fill-card').evaluateAll(elements => elements.every(el => el.scrollWidth <= el.clientWidth))).toBe(true);
+  }
+  await page.locator('.fill-add-buttons').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'tests/browser/compact-fills.png' });
+});

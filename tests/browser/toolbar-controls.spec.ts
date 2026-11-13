@@ -5,7 +5,11 @@ test('grid controls support keyboard settings and compact file actions', async (
   await expect(page.getByRole('button', { name: 'Open', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   const toggle = page.getByRole('button', { name: 'Show grid', exact: true });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.paper-grid')).toHaveAttribute('data-grid-style', 'lines');
+  await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.paper-grid')).toHaveCount(0);
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   const settings = page.getByRole('button', { name: 'Grid settings', exact: true });

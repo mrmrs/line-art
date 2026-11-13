@@ -542,11 +542,13 @@ input[type="number"] {
 }
 .fill-add-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   flex: 1;
+  min-width: 0;
 }
 .fill-add-buttons .btn {
-  flex: 1;
+  flex: 1 0 auto;
 }
 .fill-card {
   display: flex;
