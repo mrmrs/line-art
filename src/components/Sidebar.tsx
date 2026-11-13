@@ -224,7 +224,7 @@ export function Sidebar() {
           {SHAPE_DEFAULTS.map((shape) => (
             <button
               key={shape.type}
-              className="shape-library-item"
+              className="library-button shape-library-item"
               onClick={() =>
                 addNode(shape.type, shape.name, { ...shape.params }, { ...DEFAULT_TRANSFORM })
               }

@@ -118,7 +118,7 @@ export function PresetLibrary() {
         <div className={`preset-list preset-list-${view}`} onScroll={() => setTooltip(null)}>
           {entries.map(entry => (
             <div key={entry.name} className="preset-item-row" onMouseLeave={dismissTooltip} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setTooltip(null); }}>
-              <button className="preset-item" disabled={loading !== null}
+              <button className="library-button preset-item" disabled={loading !== null}
                 aria-label={`Add ${entry.name} to scene`}
                 aria-describedby={tooltip?.entry === entry ? tooltipId : undefined}
                 onMouseEnter={e => showTooltip(entry, e.currentTarget)} onFocus={e => showTooltip(entry, e.currentTarget)}

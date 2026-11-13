@@ -71,10 +71,10 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
       <div className="viewport-paper" data-paper-size={paperSize} aria-label="Paper edge; export margins are configured separately" style={{ ...paperSizePx, background: renderSettings.backgroundColor }}>
       <div className="viewport-overlay" ref={overlayRef} {...handlers} tabIndex={0} role="region" aria-label={`${camera.name} canvas`}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }} />
+      <GridOverlay {...dimensions} />
       <div className="viewport-svg" data-preview={preview ? 'true' : 'false'}
         style={{ transform: cssScale !== 1 ? `scale(${cssScale})` : undefined, transformOrigin: 'center center' }}
         dangerouslySetInnerHTML={{ __html: svg }} />
-      <GridOverlay {...dimensions} />
       </div>
       {showLabel && (
         <div className="viewport-label">

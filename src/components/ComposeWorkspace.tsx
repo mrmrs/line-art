@@ -89,8 +89,8 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
     <main className="compose-workspace">
       <div className="compose-stage" ref={stageRef}>
         <div className="compose-paper" aria-label="Composition paper" style={{ width: p.widthMm * paperScale, height: p.heightMm * paperScale, background: settings.backgroundColor }}>
-          <div className="compose-art" dangerouslySetInnerHTML={{ __html: render.svg }} />
           <GridOverlay widthMm={p.widthMm} heightMm={p.heightMm} />
+          <div className="compose-art" dangerouslySetInnerHTML={{ __html: render.svg }} />
           <svg className="compose-selection" viewBox={`0 0 ${p.widthMm} ${p.heightMm}`} aria-label="Select composition forms">
             <g transform={`translate(0 ${p.heightMm}) scale(1 -1)`}>
               {p.quiet.map(q => <rect key={q.id} x={q.x} y={q.y} width={q.width} height={q.height} className="compose-quiet" />)}

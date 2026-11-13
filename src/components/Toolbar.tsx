@@ -8,6 +8,7 @@ import { downloadText } from '../lib/export-svg';
 import type { ViewMode } from '../lib/types';
 
 import { resolvePaper, useViewSettings } from '../lib/view-settings';
+import { ThemeToggle } from './ThemeToggle';
 import { GridControls } from './GridControls';
 
 // =============================================================================
@@ -72,6 +73,7 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar-right">
+        <ThemeToggle />
         <GridControls />
         <button
           className="btn btn-sm"
