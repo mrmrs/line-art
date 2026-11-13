@@ -4,9 +4,9 @@ test('presets offer compact grid and list views with keyboard descriptions and a
   await page.goto('/');
   await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Preset grid view' })).toHaveAttribute('aria-pressed', 'true');
-  const cube = page.getByRole('button', { name: 'Add Cube to scene', exact: true });
+  const cube = page.getByRole('button', { name: 'Add Line Grid to scene', exact: true });
   await cube.focus();
-  await expect(page.getByRole('tooltip')).toContainText('Simple wireframe cube');
+  await expect(page.getByRole('tooltip')).toContainText('Grid of vertical lines');
   await expect(cube.locator('.preset-name')).toBeHidden();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
@@ -20,9 +20,9 @@ test('presets offer compact grid and list views with keyboard descriptions and a
     useSceneStore.temporal.getState().clear();
   });
   await cube.focus();
-  await page.getByRole('button', { name: 'Replace scene with Cube', exact: true }).click();
+  await page.getByRole('button', { name: 'Replace scene with Line Grid', exact: true }).click();
   await expect(page.locator('.scene-tree-item')).toHaveCount(1);
-  await expect(page.locator('.scene-tree-name')).toHaveText('Cube');
+  await expect(page.locator('.scene-tree-name')).toHaveText('Line Grid');
   await page.evaluate(async () => {
     const { useSceneStore } = await import('/src/lib/store.ts');
     useSceneStore.temporal.getState().undo();

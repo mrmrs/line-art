@@ -54,10 +54,6 @@ test('scene reload, SVG modes, export and cancellation', async ({ page }) => {
     .poll(() => page.locator('.viewport-svg polyline').count())
     .toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: 'Download SVG', exact: true }),
-  ).toBeEnabled();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('plotter-art.svg');
@@ -76,7 +72,7 @@ test('scene reload, SVG modes, export and cancellation', async ({ page }) => {
     });
   });
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
+  await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
   await page
     .getByRole('button', { name: 'Cancel export', exact: true })
     .click();
@@ -234,7 +230,7 @@ test('text generation is lazy-loaded and invalid work reports a recoverable erro
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
-  await page.getByRole('button', { name: 'T Text', exact: true }).click();
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
   await expect
     .poll(() => page.locator('.viewport-svg polyline').count(), {
       timeout: 30000,

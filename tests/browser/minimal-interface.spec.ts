@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, addPacked } from './fixtures';
 
 test('document controls live in the sidebar and layer/camera fields stay compact', async ({ page }) => {
   await page.goto('/');
@@ -9,7 +9,7 @@ test('document controls live in the sidebar and layer/camera fields stay compact
   await document.getByLabel('Paper size', { exact: true }).selectOption('A4');
   await expect(page.locator('.viewport-paper')).toHaveAttribute('data-paper-size', 'A4');
   await expect(page.getByRole('button', { name: /Automata Grid|Packed Composition|Function Surface/ })).toHaveCount(0);
-  await page.getByRole('button', { name: '◻ Cube', exact: true }).click();
+  await page.getByRole('button', { name: 'Cube', exact: true }).click();
   const title = page.getByRole('textbox', { name: 'Layer title', exact: true });
   await title.fill('Small title');
   await expect(page.locator('.scene-tree-name')).toHaveText('Small title');
@@ -26,7 +26,7 @@ test('document controls live in the sidebar and layer/camera fields stay compact
 
 test('packed canvas uses the same neutral presentation and keeps editing in the sidebar', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '◈ Packed', exact: true }).click();
+  await addPacked(page);
   await expect(page.getByRole('region', { name: 'Document', exact: true })).toBeVisible();
   await expect(page.locator('.compose-workspace button')).toHaveCount(0);
   await expect(page.getByText('COMPOSE / FITTED', { exact: true })).toHaveCount(0);
@@ -43,7 +43,7 @@ test('packed canvas uses the same neutral presentation and keeps editing in the 
 
 test('document pairs and every fill stay within the sidebar width', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '◻ Cube', exact: true }).click();
+  await page.getByRole('button', { name: 'Cube', exact: true }).click();
   await expect(page.locator('.fill-add-row')).not.toContainText('Add');
   await expect(page.getByText(/No fills\. Add/)).toHaveCount(0);
   for (const name of ['Hatch', 'Surface', 'Dots', 'Contour']) {

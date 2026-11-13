@@ -775,7 +775,7 @@ input[type="number"] {
 }
 
 .preset-tooltip span {
-  color: var(--color-text-muted);
+  color: var(--color-text-dim);
 }
 
 /* --- Drop hint / import --- */
@@ -1218,3 +1218,13 @@ input[type="number"] {
 .camera-projection-row > .property-row { flex: 1; min-width: 0; }
 .camera-projection-row .input { width: 52px; flex: 0 0 52px; }
 .camera-ortho-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--color-text-muted); }
+
+/* Shared monochrome line icons: no platform-dependent glyphs. */
+.library-icon { display: block; width: 24px; height: 24px; flex: none; }
+.preset-icon { display: grid; place-items: center; width: 24px; height: 24px; }
+.preset-list-list .library-icon { width: 24px; height: 24px; }
+.shape-library-icon, .scene-tree-icon { display: grid; place-items: center; }
+.shape-library-icon .library-icon, .scene-tree-icon .library-icon { width: 16px; height: 16px; }
+.preset-item:disabled, .preset-replace-btn:disabled { opacity: 0.45; cursor: wait; }
+.library-status { margin: 0; padding: 4px 12px 8px; color: var(--color-text-muted); font-size: 10px; }
+.model-credits { display: block; margin: 0 12px 12px; color: var(--color-text-muted); font-size: 10px; }

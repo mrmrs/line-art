@@ -1,3 +1,4 @@
+import type { LibraryIconName } from './library-icons';
 import type { CompositionParams } from './composition-types';
 // =============================================================================
 // Core Types for the ln.js Plotter Art Studio
@@ -555,6 +556,6 @@ export interface RenderResult {
 export interface ScenePreset {
   name: string;
   description: string;
-  icon: string;
+  icon: LibraryIconName;
   create: () => Omit<SceneNode, 'id'>[];
 }

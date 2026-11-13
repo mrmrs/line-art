@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, addPacked } from './fixtures';
 import type { Page } from '@playwright/test';
 
 async function scene(page: Page) {
@@ -14,8 +14,6 @@ async function scene(page: Page) {
 
 async function exportDimensions(page: Page) {
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Download SVG', exact: true })).toBeEnabled();
   const downloading = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
   const stream = await (await downloading).createReadStream();
@@ -115,7 +113,7 @@ test('invalid custom dimensions and cancelled drafts leave the current paper unc
 
 test('composition paper controls change its own physical page and preserve existing forms', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '◈ Packed', exact: true }).click();
+  await addPacked(page);
   await expect(page.locator('.compose-paper')).toBeVisible();
   await page.locator('.compose-generate').getByRole('button', { name: 'Generate composition', exact: true }).click();
   await expect.poll(() => page.locator('.compose-hit').count()).toBeGreaterThan(0);

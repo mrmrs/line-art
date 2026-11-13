@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, addPacked } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import type { CompositionParams } from '../../src/lib/composition-types';
 
@@ -7,7 +7,7 @@ test('recursive assembly selection, pin preservation, refill, reload and plot ex
   const errors: string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button',{name:'◈ Packed',exact:true}).click();
+  await addPacked(page);
   await page.getByRole('button',{name:/Recursive arcades/}).click();
   await expect(page.getByLabel('Nest in openings',{exact:true})).toBeChecked();
   await expect(page.getByLabel('Recursion depth',{exact:true})).toHaveValue('3');
@@ -71,8 +71,6 @@ test('recursive assembly selection, pin preservation, refill, reload and plot ex
   await page.getByTitle('Undo (Cmd+Z)',{exact:true}).click();
   expect(await snapshot()).toEqual(filled);
   await page.getByRole('button',{name:'Export SVG',exact:true}).click();
-  await page.getByRole('button',{name:'Generate SVG',exact:true}).click();
-  await expect(page.getByText('SVG ready',{exact:true})).toBeVisible({timeout:45000});
   const downloadPromise=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download SVG',exact:true}).click();
   const svg=await readFile((await (await downloadPromise).path())!,'utf8');

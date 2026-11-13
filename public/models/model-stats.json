@@ -1,0 +1,66 @@
+[
+  {
+    "id": "suzanne",
+    "vertices": 2012,
+    "triangles": 3936,
+    "sourceTriangles": 3936,
+    "bytes": 120032,
+    "sha256": "d4f7187c3632be18515276f81438c8f39b8cd54c99c2c2ac1ba01404b4e6e0b2"
+  },
+  {
+    "id": "utah-teapot",
+    "vertices": 821,
+    "triangles": 1560,
+    "sourceTriangles": 1560,
+    "bytes": 45345,
+    "sha256": "b69d4dcdb8685eed77b5315b8c0470e632096fed20eaeff9c30faa1830f81835"
+  },
+  {
+    "id": "pirate-ship",
+    "vertices": 1119,
+    "triangles": 1886,
+    "sourceTriangles": 3163,
+    "bytes": 59662,
+    "sha256": "15054c9a7590cf20f68cb212d73d2bcb1c1006ed238861603775f88942940482"
+  },
+  {
+    "id": "watchtower",
+    "vertices": 352,
+    "triangles": 591,
+    "sourceTriangles": 1208,
+    "bytes": 18226,
+    "sha256": "b73d7ce4d8df2e30c9bb34d5e6b05c00cba6b98975213e5d797ff20a499718d4"
+  },
+  {
+    "id": "bent-palm",
+    "vertices": 278,
+    "triangles": 482,
+    "sourceTriangles": 964,
+    "bytes": 14407,
+    "sha256": "582a7b639e471263ebf8d702adc2bae21e36fdbdb1a2464dd0459ca247910489"
+  },
+  {
+    "id": "spacecraft",
+    "vertices": 132,
+    "triangles": 280,
+    "sourceTriangles": 296,
+    "bytes": 7051,
+    "sha256": "749b2d3e92ee359194c416584967895cb839ebeaacc6f78e21353a7aaf40f2a7"
+  },
+  {
+    "id": "alien-fossil",
+    "vertices": 96,
+    "triangles": 168,
+    "sourceTriangles": 168,
+    "bytes": 4695,
+    "sha256": "4253e0781dd705d118c9c29f482412dedb3b9c7969e102881a57eb5b1509c2c1"
+  },
+  {
+    "id": "crystal-outcrop",
+    "vertices": 168,
+    "triangles": 332,
+    "sourceTriangles": 332,
+    "bytes": 9078,
+    "sha256": "a93f670663b26189a659bdd55695658d658b11c672b93f606e34354f4164e609"
+  }
+]

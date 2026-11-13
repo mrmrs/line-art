@@ -1,0 +1,9 @@
+Official University of Utah model-file terms
+https://graphics.cs.utah.edu/teapot/
+Retrieved 2026-11-13
+
+Terms of Use and Attribution: The Utah Teapot model files are freely available for any use, including commercial use. To preserve the historical identity and provenance of the model, users are requested to identify the model, and any substantially derived version of it, as a Utah Teapot (or Modified Utah Teapot) and to acknowledge its origin as the historic Utah Teapot developed at the University of Utah. This request is intended solely to preserve the historical identity of the Utah Teapot and is not intended to restrict use of the model. The model files are provided “as is,” without warranty of any kind. The provider of these files shall not be liable for any claims, damages, or other liability arising from their use.
+
+This asset is a geometry-only export of the official model generator,
+using the 1987 exterior proportions and round bottom, resolution 5.
+The generator code and WebAssembly are not redistributed with the app.

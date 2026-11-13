@@ -27,8 +27,6 @@ test('counts accepted imports and export deliveries, never generation or failed 
   expect(posts.length).toBe(3);
   await page.getByRole('button',{name:'Dismiss',exact:true}).click();
   await page.getByRole('button',{name:'Export SVG',exact:true}).click();
-  await page.getByRole('button',{name:'Generate SVG',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   expect(posts.length).toBe(3);
   const download = page.waitForEvent('download');
   await page.getByRole('button',{name:'Download SVG',exact:true}).click();
@@ -51,8 +49,6 @@ test('offline counters do not block imports or export', async ({ page }) => {
   await page.locator('input[accept=".obj,.stl,.svg"]').setInputFiles({name:'offline.obj',mimeType:'text/plain',buffer:Buffer.from('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3')});
   await expect(page.getByText('offline.obj',{exact:true}).first()).toBeVisible();
   await page.getByRole('button',{name:'Export SVG',exact:true}).click();
-  await page.getByRole('button',{name:'Generate SVG',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   const download = page.waitForEvent('download');
   await page.getByRole('button',{name:'Download SVG',exact:true}).click();
   await download;

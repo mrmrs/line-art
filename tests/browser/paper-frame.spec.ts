@@ -73,8 +73,6 @@ test('millimetre grid updates without rendering geometry and stays outside SVG e
   expect((await page.locator('.viewport-svg').innerHTML()) === before).toBe(true);
   expect(await page.evaluate(() => (window as unknown as {paperRequests: unknown[]}).paperRequests.length)).toBe(requestsBefore);
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Download SVG', exact: true })).toBeEnabled();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
   const stream = await (await download).createReadStream();

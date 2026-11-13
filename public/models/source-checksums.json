@@ -1,0 +1,26 @@
+[
+  {
+    "sourceFile": "Suzanne/Suzanne.gltf",
+    "sha256": "7e8ae013010aff530162ef2795cec74c2646019e224af17bcfb691664f0f0aec"
+  },
+  {
+    "sourceFile": "Suzanne/Suzanne.bin",
+    "sha256": "b85c2727aa41318e00673d8892f5879d46fb6e476e280f28ee1febd07602b6b8"
+  },
+  {
+    "sourceFile": "pirate-kit.zip",
+    "sha256": "667ed2caf92954ddb98f7b7cede831fe99ab75063c26b25e23d32715bee9c943"
+  },
+  {
+    "sourceFile": "space-kit.zip",
+    "sha256": "9b96df4925fffb1b460d6479766fb977b604d391a7d7f4f074beab1cc9104512"
+  },
+  {
+    "sourceFile": "teapot_generator.js",
+    "sha256": "0b35993e5bc791e057f1fe94c5d0935c7b03fefe49b15f409d84a6250d14a6e3"
+  },
+  {
+    "sourceFile": "teapot_generator.wasm",
+    "sha256": "27b36e0e6da2d37427221e8c648715fdf36cb2db6fb32ee585792ed34569510d"
+  }
+]

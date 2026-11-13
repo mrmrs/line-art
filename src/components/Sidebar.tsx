@@ -1,4 +1,5 @@
-import { DEFAULT_COMPOSITION } from '../lib/composition-types';
+import { LibraryIcon } from './LibraryIcon';
+import type { LibraryIconName } from '../lib/library-icons';
 import { useRef, useState } from 'react';
 import { useSceneStore } from '../lib/store';
 import { PresetLibrary } from './PresetLibrary';
@@ -12,26 +13,14 @@ import { nodeComplexity } from '../lib/complexity';
 // Left Sidebar: Scene tree + Shape library + Presets
 // =============================================================================
 
-const SHAPE_ICONS: Record<ShapeType, string> = {
-  'packed-composition': '◈',
-  cube: '\u25FB',
-  sphere: '\u25CB',
-  cone: '\u25B3',
-  cylinder: '\u25AF',
-  function: '\u0192',
-  mesh: '\u25C8',
-  'point-cloud': '\u2022',
-  boolean: '\u2295',
-  'cube-grid': '\u2593',
-  'line-grid': '\u2502',
-  'plane-grid': '\u25AD',
-  'automata-grid': '\u2637',
-  'svg-extrude': '\u25C6',
-  'text-extrude': 'T',
+const SHAPE_ICONS: Record<ShapeType, LibraryIconName> = {
+  'packed-composition': 'packed', cube: 'cube', sphere: 'sphere', cone: 'cone',
+  cylinder: 'cylinder', function: 'surface', mesh: 'mesh', 'point-cloud': 'points',
+  boolean: 'boolean', 'cube-grid': 'lattice', 'line-grid': 'lines', 'plane-grid': 'planes',
+  'automata-grid': 'automata', 'svg-extrude': 'extrude', 'text-extrude': 'text',
 };
 
 const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] = [
-  { type: 'packed-composition', name: 'Packed', params: DEFAULT_COMPOSITION },
   {
     type: 'cube',
     name: 'Cube',
@@ -179,10 +168,13 @@ export function Sidebar() {
                   }}
                   title={node.visible ? 'Hide' : 'Show'}
                 >
-                  {node.visible ? '\u25C9' : '\u25CE'}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" />
+                    {node.visible ? <circle cx="12" cy="12" r="3" /> : <path d="m3 3 18 18" />}
+                  </svg>
                 </button>
                 <span className="scene-tree-icon">
-                  {SHAPE_ICONS[node.type] || '\u25A0'}
+                  <LibraryIcon name={SHAPE_ICONS[node.type]} />
                 </span>
                 <span className="scene-tree-name">{node.name}</span>
                 {(() => {
@@ -238,7 +230,7 @@ export function Sidebar() {
               }
             >
               <span className="shape-library-icon">
-                {SHAPE_ICONS[shape.type]}
+                <LibraryIcon name={SHAPE_ICONS[shape.type]} />
               </span>
               <span className="shape-library-name">{shape.name}</span>
             </button>

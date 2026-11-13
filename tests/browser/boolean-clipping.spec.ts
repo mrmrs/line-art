@@ -76,10 +76,8 @@ test('Boolean curves render once at final quality across views and export', asyn
   expect(final).toBe(true);
   await page.screenshot({ path: 'tests/browser/boolean-clipping-cameras.png' });
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: 'Download SVG', exact: true }),
-  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
+  await expect(page.getByText('SVG downloaded', { exact: true })).toBeVisible();
   await expect(page.locator('.export-panel [role="alert"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

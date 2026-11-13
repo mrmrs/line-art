@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 
 // Every browser check stays isolated from the production event counters.
 export const test = base.extend<{ mockCounters: void }>({
@@ -9,3 +9,13 @@ export const test = base.extend<{ mockCounters: void }>({
   }, { auto: true }],
 });
 export { expect };
+
+
+/** Packed remains supported for saved scenes but is intentionally absent from Add Shape. */
+export async function addPacked(page: Page) {
+  await page.evaluate(async () => {
+    const { useSceneStore } = await import('/src/lib/store.ts');
+    const { DEFAULT_COMPOSITION } = await import('/src/lib/composition-types.ts');
+    useSceneStore.getState().addNode('packed-composition', 'Packed', DEFAULT_COMPOSITION);
+  });
+}

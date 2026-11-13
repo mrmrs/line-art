@@ -1,0 +1,12 @@
+Suzanne — Khronos glTF Sample Assets
+Copyright 2017 UX3D. Norbert Nopper for Everything.
+Creative Commons Zero v1.0 Universal (CC0-1.0)
+https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+Asset-specific license evidence:
+https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/Suzanne/README.md
+https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Suzanne/README.md
+
+The license is taken from this model's Legal section, not inferred from the
+repository's software license. This geometry-only OBJ is converted from that
+specific Suzanne.gltf/Suzanne.bin distribution.

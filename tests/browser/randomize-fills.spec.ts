@@ -12,7 +12,7 @@ test('shape randomize is undoable and cube grids expose face fills', async ({ pa
   await expect.poll(() => page.evaluate(async () => (await import('/src/lib/store.ts')).useSceneStore.getState().nodes[0].params)).not.toEqual(before);
   await page.evaluate(async () => (await import('/src/lib/store.ts')).useSceneStore.temporal.getState().undo());
   expect(await page.evaluate(async () => (await import('/src/lib/store.ts')).useSceneStore.getState().nodes[0].params)).toEqual(before);
-  await page.getByRole('button', { name:'Surface', exact:true }).click();
+  await page.locator('.fill-add-buttons').getByRole('button', { name:'Surface', exact:true }).click();
   await expect(page.getByText('Surface hatch', {exact:true})).toBeVisible();
   await page.locator('.fill-card select').selectOption('z');
   await expect.poll(() => page.locator('.viewport-svg polyline').count()).toBeGreaterThan(12);

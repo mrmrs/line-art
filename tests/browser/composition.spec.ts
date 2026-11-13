@@ -1,11 +1,11 @@
-import { test, expect } from './fixtures';
+import { test, expect, addPacked } from './fixtures';
 import { readFile } from 'node:fs/promises';
 
 test('packed composition generates, preserves pins, refills, reloads and exports at physical size', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
-  await page.getByRole('button', { name: '◈ Packed', exact: true }).click();
+  await addPacked(page);
   await expect(page.getByRole('textbox', { name: 'Layer title', exact: true })).toHaveValue('Packed');
   await page.locator('.compose-generate').getByRole('button', { name: 'Generate composition', exact: true }).click();
   await expect.poll(() => page.locator('.compose-hit').count(), { timeout: 30000 }).toBeGreaterThan(20);
@@ -36,8 +36,6 @@ test('packed composition generates, preserves pins, refills, reloads and exports
   await page.locator('.scene-tree-item').filter({ hasText: 'Packed' }).click();
   expect(await snapshot()).toEqual(filled);
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
-  await expect(page.getByText('SVG ready', { exact: true })).toBeVisible({ timeout: 45000 });
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
   const download = await downloadPromise;
@@ -54,7 +52,7 @@ test('curved recipe renders with quiet space and detail edits preserve placement
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
-  await page.getByRole('button', { name: '◈ Packed', exact: true }).click();
+  await addPacked(page);
   await page.getByRole('button', { name: /Orbital reliquary/ }).click();
   await page.getByLabel('Quiet region', { exact: true }).selectOption('center');
   await page.getByLabel('Target coverage', { exact: true }).fill('0.35');
@@ -72,7 +70,7 @@ test('curved recipe renders with quiet space and detail edits preserve placement
   await expect(page.locator('.compose-error')).toHaveCount(0);
   await page.screenshot({ path: 'tests/browser/packed-curves.png', fullPage: true });
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate SVG', exact: true }).click();
-  await expect(page.getByText('SVG ready', { exact: true })).toBeVisible({ timeout: 45000 });
+  await page.getByRole('button', { name: 'Download SVG', exact: true }).click();
+  await expect(page.getByText('SVG downloaded', { exact: true })).toBeVisible({ timeout: 45000 });
   expect(errors).toEqual([]);
 });

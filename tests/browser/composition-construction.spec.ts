@@ -1,11 +1,11 @@
-import { test, expect } from './fixtures';
+import { test, expect, addPacked } from './fixtures';
 import type { CompositionParams } from '../../src/lib/composition-types';
 
 test('shared isometric preview keeps all box edges on three axes and free mode is an explicit regeneration choice', async ({ page }) => {
   const errors: string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button',{name:'◈ Packed',exact:true}).click();
+  await addPacked(page);
   await expect(page.getByLabel('Construction',{exact:true})).toHaveValue('shared');
   await page.getByLabel('Maximum forms',{exact:true}).fill('80');
   await page.getByLabel('Target coverage',{exact:true}).fill('0.35');

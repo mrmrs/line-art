@@ -6,6 +6,7 @@ import { useSceneStore } from '../lib/store';
 import { DEFAULT_PLOT_SETTINGS } from '../lib/plot-settings';
 import type { PlotSettings, PlotStats } from '../lib/plot-settings';
 import { downloadSVG, copySVGToClipboard } from '../lib/export-svg';
+import './ExportPanel.css';
 
 export function ExportPanel({
   width,
@@ -30,6 +31,11 @@ export function ExportPanel({
       return {
         ...DEFAULT_PLOT_SETTINGS,
         ...JSON.parse(localStorage.getItem('ln-plot-settings') ?? '{}'),
+        // Hidden checks and estimates must not block an SVG export.
+        minimumGapMm: 0,
+        drawSpeed: DEFAULT_PLOT_SETTINGS.drawSpeed,
+        travelSpeed: DEFAULT_PLOT_SETTINGS.travelSpeed,
+        liftSeconds: DEFAULT_PLOT_SETTINGS.liftSeconds,
         ...(composition ? { marginMm: composition.marginMm } : {}),
       };
     } catch {
@@ -45,7 +51,10 @@ export function ExportPanel({
     dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
-    return () => worker.current?.terminate();
+    return () => {
+      worker.current?.terminate();
+      worker.current = null;
+    };
   }, []);
   const change = (next: Partial<PlotSettings>) => {
     const p = { ...plot, ...next };
@@ -71,39 +80,54 @@ export function ExportPanel({
     setSvg('');
     setStats(null);
     setStatus('Preparing export…');
-    const instance = new Worker(
-      new URL('../lib/export-worker.ts', import.meta.url),
-      { type: 'module' },
-    );
+    let instance: Worker;
+    try {
+      instance = new Worker(
+        new URL('../lib/export-worker.ts', import.meta.url),
+        { type: 'module' },
+      );
+    } catch (error) {
+      worker.current = null;
+      setError(String(error));
+      setBusy(false);
+      setStatus('Export failed. Try again.');
+      return;
+    }
     worker.current = instance;
+    const fail = (error: string) => {
+      if (worker.current !== instance) return;
+      setError(error);
+      setBusy(false);
+      setStatus('Export failed. Try again.');
+      instance.terminate();
+      worker.current = null;
+    };
     instance.onmessage = (event) => {
       if (worker.current !== instance) return;
       const m = event.data;
       if (m.type === 'progress') setStatus(m.message);
       if (m.type === 'error') {
-        setError(m.error);
-        setBusy(false);
-        instance.terminate();
-        worker.current = null;
+        fail(m.error);
       }
       if (m.type === 'result') {
         setSvg(m.svg);
         setStats(m.stats);
         setBusy(false);
-        setStatus('SVG ready');
+        try {
+          downloadSVG(m.svg);
+          setStatus('SVG downloaded');
+          void counters.increment('SKULLCAT_SVG_EXPORT');
+        } catch (error) { setError(String(error)); setStatus('Download failed. Try again.'); }
         instance.terminate();
         worker.current = null;
       }
     };
     instance.onerror = (event) => {
-      setError(event.message || 'Export failed');
-      setBusy(false);
-      instance.terminate();
-      worker.current = null;
+      fail(event.message || 'Export failed');
     };
     const { nodes, cameras, activeCameraIndex, renderSettings } =
       useSceneStore.getState();
-    instance.postMessage({
+    try { instance.postMessage({
       nodes: composition?.nodes ?? nodes,
       camera: composition?.camera ?? cameras[activeCameraIndex],
       settings: {
@@ -125,21 +149,18 @@ export function ExportPanel({
       pageHeightMm,
       plot,
       optimize,
-    });
+    }); } catch (error) { fail(String(error)); }
   };
   const fields: [keyof PlotSettings, string, number, number][] = [
     ['marginMm', 'Page margin (mm)', 0, 1],
-    ['penDiameterMm', 'Pen diameter (mm)', 0.01, 0.05],
+    ['penDiameterMm', 'SVG stroke width (mm)', 0.01, 0.05],
     ['maxErrorMm', 'Polyline simplification error (mm)', 0, 0.01],
-    ['minimumGapMm', 'Minimum clearance (mm; 0 allows overlaps)', 0, 0.05],
-    ['drawSpeed', 'Drawing speed (mm/s)', 0.1, 1],
-    ['travelSpeed', 'Travel speed (mm/s)', 0.1, 1],
-    ['liftSeconds', 'Lift time per stroke (s)', 0, 0.05],
   ];
   return (
     <dialog
       ref={dialog}
       className="export-panel"
+      aria-labelledby="export-dialog-title"
       onCancel={(e) => {
         e.preventDefault();
         cancel();
@@ -147,7 +168,7 @@ export function ExportPanel({
       }}
     >
       <div className="export-heading">
-        <h2>Plot output</h2>
+        <h2 id="export-dialog-title">Export SVG</h2>
         <button
           className="btn btn-sm"
           onClick={() => {
@@ -159,8 +180,7 @@ export function ExportPanel({
         </button>
       </div>
       <p>
-        {pageWidthMm} × {pageHeightMm} mm. Margins clip the drawing. Clearance
-        checks report overlaps; they never silently delete them.
+        {Number(pageWidthMm.toFixed(3))} × {Number(pageHeightMm.toFixed(3))} mm. Download renders the drawing at export quality.
       </p>
       <fieldset disabled={busy}>
         <div className="export-fields">
@@ -196,9 +216,8 @@ export function ExportPanel({
         )}
       </fieldset>
       <p className="muted">
-        A direction lock on any scene object also preserves all stroke
-        directions during export. Time assumes a start at the page margin for
-        each pen and excludes manual pen changes.
+        Stroke width is saved in the SVG. Margins clip the drawing.
+        Direction locks on scene objects also apply here.
       </p>
       {error && (
         <p role="alert" className="export-error">
@@ -209,10 +228,7 @@ export function ExportPanel({
       {stats && (
         <p>
           {stats.strokes.toLocaleString()} strokes ·{' '}
-          {stats.penLifts.toLocaleString()} lifts ·{' '}
-          {(stats.inkMm / 1000).toFixed(2)} m drawn ·{' '}
-          {(stats.travelMm / 1000).toFixed(2)} m travel · ~
-          {(stats.estimatedSeconds / 60).toFixed(1)} min
+          {(stats.inkMm / 1000).toFixed(2)} m of linework
         </p>
       )}
       {totals.SKULLCAT_SVG_EXPORT !== undefined && <p className="muted">{totals.SKULLCAT_SVG_EXPORT.toLocaleString()} SVG exports worldwide</p>}
@@ -223,26 +239,15 @@ export function ExportPanel({
           </button>
         ) : (
           <button className="btn btn-primary" onClick={generate}>
-            Generate SVG
+            Download SVG
           </button>
         )}
-        <button
+        {svg && <button
           className="btn"
-          disabled={!svg || busy}
-          onClick={() => {
-            try {
-              downloadSVG(svg);
-              void counters.increment('SKULLCAT_SVG_EXPORT');
-            } catch (error) { setError(String(error)); }
-          }}
-        >
-          Download SVG
-        </button>
-        <button
-          className="btn"
-          disabled={!svg || busy}
+          disabled={busy}
           onClick={async () => {
             try {
+              setError('');
               await copySVGToClipboard(svg);
               setStatus('SVG copied');
               void counters.increment('SKULLCAT_SVG_EXPORT');
@@ -250,7 +255,7 @@ export function ExportPanel({
           }}
         >
           Copy SVG
-        </button>
+        </button>}
       </div>
     </dialog>
   );
