@@ -1,4 +1,5 @@
 import { useCallback, lazy, Suspense } from 'react';
+import { DocumentControls } from './DocumentControls';
 import { randomizeShape } from '../lib/randomize';
 import { reportError, useSceneStore } from '../lib/store';
 import type {
@@ -83,6 +84,7 @@ export function Properties() {
 
   return (
     <aside className="properties">
+      <DocumentControls />
       <CameraControls
         camera={cameras[activeCameraIndex]}
         onChange={onCameraChange}
@@ -154,6 +156,7 @@ function NodeProperties({
       <div className="properties-header">
         <input
           className="input properties-name-input"
+          aria-label="Layer title"
           value={node.name}
           onChange={(e) => updateNode(id, { name: e.target.value })}
         />

@@ -5,7 +5,7 @@ test('shared isometric preview keeps all box edges on three axes and free mode i
   const errors: string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button',{name:'◈ Packed Composition',exact:true}).click();
+  await page.getByRole('button',{name:'◈ Packed',exact:true}).click();
   await expect(page.getByLabel('Construction',{exact:true})).toHaveValue('shared');
   await page.getByLabel('Maximum forms',{exact:true}).fill('80');
   await page.getByLabel('Target coverage',{exact:true}).fill('0.35');

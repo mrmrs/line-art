@@ -9,15 +9,32 @@ import { selectAssemblies, removeBranches } from '../lib/composition-selection';
 import type { PackingResult } from '../lib/composition';
 import { useSceneStore } from '../lib/store';
 import { useWorkerRender } from '../hooks/useWorkerRender';
-import { ExportPanel } from './ExportPanel';
+import { DocumentControls } from './DocumentControls';
+import './ComposeWorkspace.css';
 
 export function ComposeWorkspace({ node }: { node: SceneNode }) {
   const p = node.params as CompositionParams;
   const update = useSceneStore(s => s.updateNodeParams);
+  const updateNode = useSceneStore(s => s.updateNode);
   const settings = useSceneStore(s => s.renderSettings);
   const [selected, select] = useState<string[]>([]);
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Choose a recipe, then generate your composition.');
-  const [error, setError] = useState(''), [exportOpen, setExportOpen] = useState(false);
+  const [error, setError] = useState('');
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState({ width: 400, height: 400 });
+  useEffect(() => {
+    const element = stageRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (width <= 0 || height <= 0) return;
+      setStageSize(previous => previous.width === width && previous.height === height ? previous : { width, height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const paperScale = Math.min(Math.max(1, stageSize.width - 48) / p.widthMm, Math.max(1, stageSize.height - 48) / p.heightMm);
   const worker = useRef<Worker | null>(null);
   useEffect(() => () => worker.current?.terminate(), []);
   const nodes = useMemo(() => [node], [node]);
@@ -70,17 +87,8 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
   );
   return <>
     <main className="compose-workspace">
-      <div className="compose-heading"><div><span className="compose-eyebrow">COMPOSE / FITTED</span><h2>Packed composition</h2></div>
-        <button className="btn btn-sm" disabled={!p.instances.length || busy} onClick={() => setExportOpen(true)}>Export composition</button></div>
-      <div className="compose-actions" aria-label="Composition selection">
-        <span>{selectedIds.length ? `${selectedIds.length} selected` : 'Select a form · Shift-click to select more'}</span>
-        <button className="btn btn-xs" disabled={!selectedIds.length || busy} onClick={() => select(selectAssemblies(p.instances, selectedIds))}>Select assembly</button>
-        <button className="btn btn-xs" disabled={!selectedIds.length || busy} onClick={() => pin(true)}>Keep selected</button>
-        <button className="btn btn-xs" disabled={!selectedIds.length || busy} onClick={() => pin(false)}>Release selected</button>
-        <button className="btn btn-xs" disabled={!selectedIds.length || busy} title="Remove selected forms and their descendants" onClick={() => { change({ instances: removeBranches(p.instances, selectedIds) }); select([]); }}>Remove selected</button>
-      </div>
-      <div className="compose-stage">
-        <div className="compose-paper" style={{ aspectRatio: `${p.widthMm} / ${p.heightMm}`, width: `min(100%, calc((100vh - 235px) * ${p.widthMm / p.heightMm}))` }}>
+      <div className="compose-stage" ref={stageRef}>
+        <div className="compose-paper" aria-label="Composition paper" style={{ width: p.widthMm * paperScale, height: p.heightMm * paperScale, background: settings.backgroundColor }}>
           <div className="compose-art" dangerouslySetInnerHTML={{ __html: render.svg }} />
           <GridOverlay widthMm={p.widthMm} heightMm={p.heightMm} />
           <svg className="compose-selection" viewBox={`0 0 ${p.widthMm} ${p.heightMm}`} aria-label="Select composition forms">
@@ -94,14 +102,22 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
               </path>)}
             </g>
           </svg>
-          {!p.instances.length && <div className="compose-empty"><span>01 — Choose your forms</span><strong>A field of possibilities.</strong><p>Start with a recipe. Fit it to the page.<br />Keep the parts you love and explore the rest.</p><button className="btn" disabled={busy} onClick={() => generate(false)}>Generate composition</button></div>}
+
         </div>
       </div>
-      <div className="compose-footer"><span>{p.widthMm} × {p.heightMm} mm · {p.instances.length} forms{descendants ? ` · ${descendants} nested` : ''} · {Math.round(coverage * 100)}% footprints</span>
-        {render.rendering ? <button className="btn btn-xs" onClick={render.cancel}>Cancel preview</button> : <span>{render.pathCount.toLocaleString()} strokes</span>}</div>
-      {render.error && <div role="alert" className="compose-error">{render.error}<button className="btn btn-xs" onClick={render.retry}>Retry preview</button></div>}
     </main>
     <aside className="properties compose-controls" aria-label="Packed composition controls">
+      <DocumentControls />
+      <div className="properties-header"><input className="input properties-name-input" aria-label="Layer title" value={node.name} onChange={event => updateNode(node.id, { name: event.target.value })} /></div>
+      {p.instances.length > 0 && <div className="properties-section compose-selection-controls" aria-label="Composition selection">
+        <div className="properties-section-title">Selection <span>{selectedIds.length || ''}</span></div>
+        <div className="compose-selection-actions">
+          <button className="btn btn-xs" disabled={!selectedIds.length || busy} onClick={() => select(selectAssemblies(p.instances, selectedIds))}>Select assembly</button>
+          <button className="btn btn-xs" disabled={!selectedIds.length || busy} onClick={() => pin(true)}>Keep selected</button>
+          <button className="btn btn-xs" disabled={!selectedIds.length || busy} onClick={() => pin(false)}>Release selected</button>
+          <button className="btn btn-xs" disabled={!selectedIds.length || busy} title="Remove selected forms and their descendants" onClick={() => { change({ instances: removeBranches(p.instances, selectedIds) }); select([]); }}>Remove selected</button>
+        </div>
+      </div>}
       <div className="properties-section"><div className="properties-section-title">Starting points</div>
         {COMPOSITION_PRESETS.map(recipe => <button className="compose-recipe" key={recipe.name} disabled={busy} onClick={() => { change({ ...DEFAULT_COMPOSITION, ...recipe.values, widthMm: p.widthMm, heightMm: p.heightMm, marginMm: p.marginMm, quiet: p.quiet, instances: p.instances }); setStatus(`${recipe.name} selected. Generate to apply; kept forms will stay.`); }}><strong>{recipe.name}</strong><span>{recipe.description}</span></button>)}
       </div>
@@ -135,7 +151,7 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
         <p className="compose-note">Nest uses actual occupied shapes, leaving apertures available. Recursion grows smaller forms inside frame openings and stops at the smallest form size. Keeping a child preserves its enclosing frames. Select assembly to keep a whole family; removing a frame removes its descendants.</p>
       </div>
       <div className="properties-section"><div className="properties-section-title">Paper & quiet space</div>
-        {numeric('widthMm', 'Width (mm)', 40, 2000, 1)}{numeric('heightMm', 'Height (mm)', 40, 2000, 1)}{numeric('marginMm', 'Margin (mm)', 0, Math.min(p.widthMm, p.heightMm) / 3, 1)}
+        {numeric('marginMm', 'Margin (mm)', 0, Math.min(p.widthMm, p.heightMm) / 3, 1)}
         <label className="compose-field"><span>Quiet region</span><select className="input input-sm" aria-label="Quiet region" disabled={busy} value={p.quiet[0]?.id ?? 'none'} onChange={e => {
           const id = e.target.value; change({ quiet: id === 'none' ? [] : [{ id,
             x: p.widthMm * (id === 'center' ? 0.35 : 0.46), y: p.heightMm * 0.25,
@@ -148,8 +164,11 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
       <div className="compose-generate">
         {busy ? <button className="btn" onClick={cancel}>Cancel packing</button> : <><button className="btn" onClick={() => generate(false)}>Generate composition</button><button className="btn btn-sm" disabled={!p.instances.length} onClick={() => generate(true)}>Refill gaps</button></>}
         <p role="status">{status}</p>{error && <p className="compose-error" role="alert">{error}</p>}
+        <p className="compose-summary">{p.instances.length} forms{descendants ? ` · ${descendants} nested` : ''} · {Math.round(coverage * 100)}% coverage · {render.pathCount.toLocaleString()} strokes</p>
+        {render.rendering && <button className="btn btn-xs" onClick={render.cancel}>Cancel preview</button>}
+        {render.error && <p role="alert" className="compose-error">{render.error} <button className="btn btn-xs" onClick={render.retry}>Retry preview</button></p>}
       </div>
     </aside>
-    {exportOpen && <ExportPanel width={width} height={height} pageWidthMm={p.widthMm} pageHeightMm={p.heightMm} optimize onClose={() => setExportOpen(false)} composition={{ nodes, camera, marginMm: p.marginMm }} />}
+
   </>;
 }

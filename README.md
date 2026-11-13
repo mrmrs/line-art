@@ -25,7 +25,7 @@ Math formulas accept arithmetic, comparisons, conditionals, variables, and commo
 
 ## Plot output
 
-**Export SVG** opens physical output settings. Set margins, pen diameter, simplification tolerance, optional minimum clearance, endpoint joining, duplicate removal, and stroke direction. Generate a snapshot, then download or copy it. Export and preview workers can be cancelled. Edits after generating a snapshot do not alter that already-generated SVG.
+The right sidebar’s **Document** section contains stroke, background, quality, paper and path optimization settings. **Export SVG** in the header opens physical output settings for either a regular scene or a packed composition. Set margins, pen diameter, simplification tolerance, optional minimum clearance, endpoint joining, duplicate removal, and stroke direction. Generate a snapshot, then download or copy it. Export and preview workers can be cancelled. Edits after generating a snapshot do not alter that already-generated SVG.
 
 Margins clip paths and reserve half the pen diameter so ink stays within the margin. Joining never bridges an intentional gap. Minimum clearance is checked within each pen; zero allows crossings and overlaps. Estimates include pen lifts and configurable drawing/travel speeds, but exclude manual pen changes and device acceleration.
 
@@ -34,7 +34,7 @@ The engine enforces explicit input, geometry, and sampling limits rather than si
 
 ## Packed composition
 
-Choose **Packed Composition** in Add Shape to enter the paper-first workspace. Pick **Recursive arcades**, **Folded mineral**, **Orbital reliquary**, or **Stepped foundry**, then generate. Mix prisms, ellipsoids, sliced orbs, frames and steps with varying sizes, proportions and heights. New compositions use shared isometric axes, with world-plane quarter-turns instead of independent tilts; frames maintain equal wall thickness as proportions change. **Free orientation** retains the earlier floating style. To realign existing artwork, choose **Shared isometric**, release the pins you want rebuilt, then Generate.
+Choose **Packed** in Add Shape. Its artwork uses the same neutral canvas and paper framing, with composition controls in the right sidebar. Pick **Recursive arcades**, **Folded mineral**, **Orbital reliquary**, or **Stepped foundry**, then generate. Mix prisms, ellipsoids, sliced orbs, frames and steps with varying sizes, proportions and heights. New compositions use shared isometric axes, with world-plane quarter-turns instead of independent tilts; frames maintain equal wall thickness as proportions change. **Free orientation** retains the earlier floating style. To realign existing artwork, choose **Shared isometric**, release the pins you want rebuilt, then Generate.
 
 Click forms to select them; Shift-click adds to the selection. **Keep selected** pins their shape and placement across seeds. **Refill gaps** measures residual free space and fits additional forms without moving existing ones. **Nest in openings** uses the actual occupied pieces of frames and steps; **Recursion depth** and **Child scale** create smaller descendants inside frame apertures. **Select assembly** selects a whole family; pinning a child preserves its ancestor frames. Quiet regions reserve space; **Surface detail** changes engraving and ribs without moving the composition. Save/open and undo use the existing scene document.
 

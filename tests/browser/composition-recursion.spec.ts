@@ -7,7 +7,7 @@ test('recursive assembly selection, pin preservation, refill, reload and plot ex
   const errors: string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button',{name:'◈ Packed Composition',exact:true}).click();
+  await page.getByRole('button',{name:'◈ Packed',exact:true}).click();
   await page.getByRole('button',{name:/Recursive arcades/}).click();
   await expect(page.getByLabel('Nest in openings',{exact:true})).toBeChecked();
   await expect(page.getByLabel('Recursion depth',{exact:true})).toHaveValue('3');
@@ -58,7 +58,7 @@ test('recursive assembly selection, pin preservation, refill, reload and plot ex
   await page.screenshot({path:'tests/browser/packed-recursive.png',fullPage:true});
   await page.waitForTimeout(700);
   await page.reload();
-  await page.locator('.scene-tree-item').filter({hasText:'Packed Composition'}).click();
+  await page.locator('.scene-tree-item').filter({hasText:'Packed'}).click();
   expect(await snapshot()).toEqual(filled);
   await page.locator(`[data-instance-id="${child!.id}"]`).focus();
   await page.keyboard.press('Enter');
@@ -70,7 +70,7 @@ test('recursive assembly selection, pin preservation, refill, reload and plot ex
   expect(pruned.instances.some(i=>i.id===child!.parentId)).toBeTruthy();
   await page.getByTitle('Undo (Cmd+Z)',{exact:true}).click();
   expect(await snapshot()).toEqual(filled);
-  await page.getByRole('button',{name:'Export composition',exact:true}).click();
+  await page.getByRole('button',{name:'Export SVG',exact:true}).click();
   await page.getByRole('button',{name:'Generate SVG',exact:true}).click();
   await expect(page.getByText('SVG ready',{exact:true})).toBeVisible({timeout:45000});
   const downloadPromise=page.waitForEvent('download');

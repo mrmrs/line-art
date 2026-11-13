@@ -1,0 +1,44 @@
+.app-body > .compose-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.compose-workspace .compose-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.compose-workspace .compose-paper {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--color-border), 0 2px 8px #00000012;
+}
+.compose-workspace .compose-hit:hover,
+.compose-workspace .compose-hit:focus-visible,
+.compose-workspace .compose-hit.is-selected {
+  fill: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  stroke: var(--color-accent);
+}
+.compose-workspace .compose-hit.is-pinned:not(.is-selected) {
+  stroke: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.compose-workspace .compose-quiet {
+  fill: #8888880c;
+  stroke: #888;
+}
+.app-body > .compose-controls { width: var(--properties-width); }
+.compose-selection-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.compose-controls .compose-generate { padding: 12px; background: var(--color-surface); }
+.compose-controls .compose-summary { font-size: 10px; color: var(--color-text-dim); }
+.compose-controls .compose-error { padding: 0; color: var(--color-danger); font-size: 10px; }
+.compose-controls .compose-recipe { padding: 6px; border-radius: 0; }
+.compose-controls .compose-recipe:hover { border-color: var(--color-text-muted); }

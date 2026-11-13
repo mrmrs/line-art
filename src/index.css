@@ -818,9 +818,12 @@ input[type="number"] {
 
 .properties-name-input {
   width: 100%;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 400;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .properties-section {
@@ -1176,11 +1179,6 @@ input[type="number"] {
 
 /* Paper-first composition workspace. Selection is immediate and stays vector. */
 .compose-workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #e9ece8; color: #23372f; }
-.compose-heading { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px 10px; gap: 12px; }
-.compose-eyebrow { font-size: 10px; letter-spacing: .14em; opacity: .65; }
-.compose-heading h2 { margin: 4px 0 0; font-size: 21px; font-weight: 500; letter-spacing: -.03em; }
-.compose-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 0 24px 12px; font-size: 11px; }
-.compose-actions > span { margin-right: auto; }
 .compose-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 14px 24px; }
 .compose-paper { position: relative; background: white; box-shadow: 0 4px 24px #20382c18, 0 1px 3px #20382c10; flex-shrink: 0; }
 .compose-art, .compose-selection { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -1191,11 +1189,6 @@ input[type="number"] {
 .compose-hit.is-pinned { stroke: #329d7866; stroke-dasharray: 1 1; }
 .compose-hit.is-selected { fill: #2b82662c; stroke: #23876e; stroke-dasharray: none; }
 .compose-quiet { fill: #bacbb31c; stroke: #7c9681; stroke-width: .25; stroke-dasharray: 2 2; pointer-events: none; }
-.compose-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 24px; }
-.compose-empty > span { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
-.compose-empty strong { font-size: clamp(18px, 2vw, 28px); font-weight: 400; margin: 14px 0; }
-.compose-empty p { font-size: 12px; line-height: 1.7; color: #718077; margin: 0 0 20px; }
-.compose-footer { padding: 10px 24px; display: flex; justify-content: space-between; gap: 8px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .compose-controls { width: 290px; }
 .compose-recipe { display: block; width: 100%; text-align: left; border: 1px solid var(--color-border); border-radius: 5px; background: transparent; color: inherit; padding: 10px; margin-bottom: 6px; cursor: pointer; }
 .compose-recipe:hover { border-color: #62a486; }
@@ -1210,11 +1203,16 @@ input[type="number"] {
 .compose-generate .btn { margin-right: 5px; margin-bottom: 5px; }
 .compose-generate p { font-size: 11px; line-height: 1.5; }
 .compose-error { color: #bf634d; padding: 8px; font-size: 12px; }
-.compose-workspace .btn { background: #fff; color: #254535; border-color: #bacac0; }
-.compose-workspace .btn:disabled { opacity: .4; }
-.compose-recipe:active, .compose-workspace .btn:active { transform: scale(.98); }
+.compose-recipe:active { transform: scale(.98); }
 
 .compose-toggle { display: flex; align-items: center; gap: 7px; font-size: 11px; margin: 10px 0 14px; }
 .compose-selection .compose-hit { fill-rule: nonzero; }
 
 .compose-field select[aria-label="Construction"] { width: 150px; }
+
+.properties-name-input:focus { border-color: transparent; box-shadow: none; }
+.properties-name-input:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 2px; }
+.camera-projection-row { display: flex; align-items: center; gap: 16px; }
+.camera-projection-row > .property-row { flex: 1; min-width: 0; }
+.camera-projection-row .input { width: 52px; flex: 0 0 52px; }
+.camera-ortho-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--color-text-muted); }

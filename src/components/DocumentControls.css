@@ -1,0 +1,66 @@
+.document-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.document-controls .properties-section-title {
+  margin-bottom: 0;
+}
+
+.document-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-text-dim);
+  font-size: 10px;
+}
+
+.document-row-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.document-row-inputs .input {
+  width: 56px;
+}
+
+.document-row > select {
+  width: 94px;
+}
+
+.document-controls .paper-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.document-controls .paper-controls > .toolbar-label {
+  grid-column: 1 / -1;
+  color: var(--color-text-dim);
+  font-size: 10px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.document-controls .paper-preset-select {
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.document-controls .paper-settings-popover {
+  right: 0;
+  width: min(244px, 100%);
+  z-index: 20;
+}
+
+.document-controls .grid-setting .input {
+  width: 96px;
+}
+
+.document-optimize input {
+  margin: 0;
+}

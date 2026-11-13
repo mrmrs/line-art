@@ -91,6 +91,8 @@ export const MIN_PAPER_MM = 40;
 export const MAX_PAPER_MM = 2000;
 
 export interface ViewSettings {
+  optimizePaths: boolean;
+  setOptimizePaths: (optimize: boolean) => void;
   paperSize: string;
   paperOrientation: PaperOrientation;
   customWidthMm: number;
@@ -111,6 +113,8 @@ export interface ViewSettings {
 }
 // Display preferences deliberately stay outside scene undo and export data.
 export const useViewSettings = create<ViewSettings>((set) => ({
+  optimizePaths: true,
+  setOptimizePaths: optimizePaths => set({ optimizePaths }),
   paperSize: 'square', paperOrientation: 'portrait', customWidthMm: 210, customHeightMm: 297, paperUnit: 'mm',
   setPaperOrientation: paperOrientation => { if (paperOrientation === 'portrait' || paperOrientation === 'landscape') set({ paperOrientation }); },
   setPaperUnit: paperUnit => { if (Object.hasOwn(PAPER_UNIT_MM, paperUnit)) set({ paperUnit }); },

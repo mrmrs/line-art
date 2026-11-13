@@ -115,7 +115,7 @@ test('invalid custom dimensions and cancelled drafts leave the current paper unc
 
 test('composition paper controls change its own physical page and preserve existing forms', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '◈ Packed Composition', exact: true }).click();
+  await page.getByRole('button', { name: '◈ Packed', exact: true }).click();
   await expect(page.locator('.compose-paper')).toBeVisible();
   await page.locator('.compose-generate').getByRole('button', { name: 'Generate composition', exact: true }).click();
   await expect.poll(() => page.locator('.compose-hit').count()).toBeGreaterThan(0);
@@ -124,15 +124,17 @@ test('composition paper controls change its own physical page and preserve exist
     return useSceneStore.getState().nodes.find(n => n.type === 'packed-composition')!.params.instances;
   });
   await page.getByRole('button', { name: 'Landscape orientation', exact: true }).click();
-  await expect(page.getByLabel('Width (mm)', { exact: true })).toHaveValue('297');
-  await expect(page.getByLabel('Height (mm)', { exact: true })).toHaveValue('210');
+  await expect(page.getByRole('button', { name: 'Landscape orientation', exact: true })).toHaveAttribute('aria-pressed', 'true');
   const dialog = await openCustom(page);
   await dialog.getByLabel('Paper units').selectOption('in');
   await dialog.getByLabel('Paper width', { exact: true }).fill('8');
   await dialog.getByLabel('Paper height', { exact: true }).fill('10');
   await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
-  await expect(page.getByLabel('Width (mm)', { exact: true })).toHaveValue('203.2');
-  await expect(page.getByLabel('Height (mm)', { exact: true })).toHaveValue('254');
+  await expect.poll(() => page.evaluate(async () => {
+    const { useSceneStore } = await import('/src/lib/store.ts');
+    const p = useSceneStore.getState().nodes.find(n => n.type === 'packed-composition')!.params;
+    return [p.widthMm, p.heightMm];
+  })).toEqual([203.2, 254]);
   const paper = (await page.locator('.compose-paper').boundingBox())!;
   expect(paper.width / paper.height).toBeCloseTo(0.8, 3);
   expect(await page.evaluate(async () => {

@@ -9,7 +9,6 @@ import type { ViewMode } from '../lib/types';
 
 import { resolvePaper, useViewSettings } from '../lib/view-settings';
 import { GridControls } from './GridControls';
-import { PaperControls } from './PaperControls';
 
 // =============================================================================
 // Top Toolbar: view mode, export, settings
@@ -25,12 +24,9 @@ const VIEW_MODES: { value: ViewMode; label: string; icon: string }[] = [
 export function Toolbar() {
   const viewMode = useSceneStore((s) => s.viewMode);
   const setViewMode = useSceneStore((s) => s.setViewMode);
-  const renderSettings = useSceneStore((s) => s.renderSettings);
-  const updateRenderSettings = useSceneStore((s) => s.updateRenderSettings);
 
   const viewSettings = useViewSettings();
-  const updateNodeParams = useSceneStore(s => s.updateNodeParams);
-  const [optimize, setOptimize] = useState(true);
+  const optimize = useViewSettings(s => s.optimizePaths);
 
   const [exportOpen, setExportOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -72,97 +68,7 @@ export function Toolbar() {
           </div>
         </div>
 
-        <div className="toolbar-divider" />
-
         </>}
-        <div className="toolbar-group">
-          <label className="toolbar-label">Stroke</label>
-          <input
-            type="number"
-            className="input input-sm"
-            value={renderSettings.strokeWidth}
-            min={0.1}
-            max={5}
-            step={0.1}
-            onChange={(e) =>
-              updateRenderSettings({
-                strokeWidth: parseFloat(e.target.value) || 1,
-              })
-            }
-            style={{ width: 52 }}
-          />
-          <input
-            type="color"
-            className="input-color"
-            value={renderSettings.strokeColor}
-            onChange={(e) =>
-              updateRenderSettings({ strokeColor: e.target.value })
-            }
-          />
-        </div>
-
-        <div className="toolbar-divider" />
-
-        <div className="toolbar-group">
-          <label className="toolbar-label">Bg</label>
-          <input
-            type="color"
-            className="input-color"
-            value={renderSettings.backgroundColor}
-            onChange={(e) =>
-              updateRenderSettings({ backgroundColor: e.target.value })
-            }
-          />
-        </div>
-
-        <div className="toolbar-divider" />
-
-        <div className="toolbar-group">
-          <label className="toolbar-label">Quality</label>
-          <select
-            className="input input-sm"
-            aria-label="Visibility quality"
-            value={renderSettings.curveTolerance ?? 0.25}
-            onChange={(e) =>
-              updateRenderSettings({ curveTolerance: parseFloat(e.target.value) })
-            }
-          >
-            <option value={1}>Fast</option>
-            <option value={0.25}>Fine</option>
-            <option value={0.1}>Precise</option>
-            <option value={0.025}>Ultra</option>
-          </select>
-        </div>
-
-        <div className="toolbar-divider" />
-
-        <div className="toolbar-group">
-          <PaperControls key={packed?.id ?? 'scene'} composition={packed && packedParams ? {
-            widthMm: packedParams.widthMm, heightMm: packedParams.heightMm,
-            onChange: (widthMm, heightMm) => updateNodeParams(packed.id, {
-              widthMm, heightMm,
-              marginMm: Math.min(packedParams.marginMm, Math.min(widthMm, heightMm) / 3),
-              quiet: packedParams.quiet.map(region => {
-                const width = Math.max(1, Math.min(widthMm, region.width * widthMm / packedParams.widthMm));
-                const height = Math.max(1, Math.min(heightMm, region.height * heightMm / packedParams.heightMm));
-                return { ...region, width, height,
-                  x: Math.max(0, Math.min(widthMm - width, region.x * widthMm / packedParams.widthMm)),
-                  y: Math.max(0, Math.min(heightMm - height, region.y * heightMm / packedParams.heightMm)),
-                };
-              }),
-            }),
-          } : undefined} />
-          <label className="toolbar-label" style={{ marginLeft: 8 }}>
-            <input
-              type="checkbox"
-              checked={optimize}
-              onChange={(e) => setOptimize(e.target.checked)}
-              title="Reorder paths for shorter pen travel"
-              style={{ marginRight: 4 }}
-            />
-            optimize
-          </label>
-        </div>
       </div>
 
       <div className="toolbar-right">
@@ -171,15 +77,17 @@ export function Toolbar() {
           className="btn btn-sm"
           onClick={() => useSceneStore.temporal.getState().undo()}
           title="Undo (Cmd+Z)"
+          aria-label="Undo"
         >
-          ↶
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 10h10a6 6 0 0 1 0 12M4 10l5-5M4 10l5 5" transform="translate(0 -2)" /></svg>
         </button>
         <button
           className="btn btn-sm"
           onClick={() => useSceneStore.temporal.getState().redo()}
           title="Redo (Cmd+Shift+Z)"
+          aria-label="Redo"
         >
-          ↷
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 10H10a6 6 0 0 0 0 12M20 10l-5-5M20 10l-5 5" transform="translate(0 -2)" /></svg>
         </button>
         <button
           className="btn btn-sm"

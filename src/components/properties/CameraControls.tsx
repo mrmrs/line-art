@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import type { CameraConfig } from '../../lib/types';
 import { CAMERA_PRESETS } from '../../lib/cameras';
-import { NumberInput, Vec3Input, CheckboxInput } from './inputs';
+import { NumberInput, Vec3Input } from './inputs';
 import { useDraftValue } from '../../hooks/useDraftValue';
 
 interface Props {
@@ -79,10 +79,12 @@ export const CameraControls = memo(function CameraControls({ camera, onChange }:
           </div>
         </div>
 
-        <NumberInput label="FOV" value={camera.fovy} onChange={(v) => onChange({ fovy: v })} step={5} min={10} max={120} />
+        <div className="camera-projection-row">
+          <NumberInput label="FOV" value={camera.fovy} onChange={(v) => onChange({ fovy: v })} step={5} min={10} max={120} />
+          <label className="camera-ortho-toggle"><input type="checkbox" checked={camera.ortho} onChange={event => onChange({ ortho: event.target.checked })} />Ortho</label>
+        </div>
         <Vec3Input label="Eye" value={camera.eye} onChange={(v) => onChange({ eye: v })} step={0.5} />
         <Vec3Input label="Target" value={camera.center} onChange={(v) => onChange({ center: v })} step={0.5} />
-        <CheckboxInput label="Ortho" value={camera.ortho} onChange={(v) => onChange({ ortho: v })} />
         {camera.ortho && (
           <NumberInput label="Ortho Size" value={camera.orthoSize} onChange={(v) => onChange({ orthoSize: v })} step={0.5} min={0.5} max={20} />
         )}

@@ -31,7 +31,7 @@ const SHAPE_ICONS: Record<ShapeType, string> = {
 };
 
 const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] = [
-  { type: 'packed-composition', name: 'Packed Composition', params: DEFAULT_COMPOSITION },
+  { type: 'packed-composition', name: 'Packed', params: DEFAULT_COMPOSITION },
   {
     type: 'cube',
     name: 'Cube',
@@ -54,7 +54,7 @@ const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] =
   },
   {
     type: 'function',
-    name: 'Function Surface',
+    name: 'Surface',
     params: {
       expression: 'Math.sin(x * 2) * Math.cos(y * 2) * 0.5',
       bounds: { min: [-3, -3, -2], max: [3, 3, 2] },
@@ -89,7 +89,7 @@ const SHAPE_DEFAULTS: { type: ShapeType; name: string; params: ShapeParams }[] =
   },
   {
     type: 'automata-grid',
-    name: 'Automata Grid',
+    name: 'Automata',
     params: { ...DEFAULT_AUTOMATA_GRID_PARAMS } as AutomataGridParams,
   },
   {
