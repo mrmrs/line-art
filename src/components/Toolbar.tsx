@@ -7,8 +7,9 @@ import { ExportPanel } from './ExportPanel';
 import { downloadText } from '../lib/export-svg';
 import type { ViewMode } from '../lib/types';
 
-import { PAPER_SIZES, useViewSettings } from '../lib/view-settings';
+import { resolvePaper, useViewSettings } from '../lib/view-settings';
 import { GridControls } from './GridControls';
+import { PaperControls } from './PaperControls';
 
 // =============================================================================
 // Top Toolbar: view mode, export, settings
@@ -27,15 +28,15 @@ export function Toolbar() {
   const renderSettings = useSceneStore((s) => s.renderSettings);
   const updateRenderSettings = useSceneStore((s) => s.updateRenderSettings);
 
-  const paperSize = useViewSettings(s => s.paperSize);
-  const setPaperSize = useViewSettings(s => s.setPaperSize);
+  const viewSettings = useViewSettings();
+  const updateNodeParams = useSceneStore(s => s.updateNodeParams);
   const [optimize, setOptimize] = useState(true);
 
   const [exportOpen, setExportOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const packed = useSceneStore(s => s.nodes.find(n => n.id === s.selectedId && n.type === 'packed-composition'));
   const packedParams = packed?.params as CompositionParams | undefined;
-  const paper = packedParams ? { w: compositionResolution(packedParams).width, h: compositionResolution(packedParams).height, physW: `${packedParams.widthMm}mm`, physH: `${packedParams.heightMm}mm` } : PAPER_SIZES[paperSize];
+  const paper = packedParams ? { w: compositionResolution(packedParams).width, h: compositionResolution(packedParams).height, physW: `${packedParams.widthMm}mm`, physH: `${packedParams.heightMm}mm` } : resolvePaper(viewSettings);
   const mm = (dimension: string) =>
     parseFloat(dimension) * (dimension.endsWith('in') ? 25.4 : 1);
 
@@ -136,24 +137,21 @@ export function Toolbar() {
         <div className="toolbar-divider" />
 
         <div className="toolbar-group">
-          <label className="toolbar-label">Paper</label>
-          <select
-            className="input input-sm"
-            value={packedParams ? 'composition' : paperSize}
-            disabled={!!packedParams}
-            onChange={(e) =>
-              setPaperSize(e.target.value as keyof typeof PAPER_SIZES)
-            }
-            aria-label="Paper size"
-            title="Paper size"
-          >
-            {packedParams && <option value="composition">{packedParams.widthMm} × {packedParams.heightMm} mm</option>}
-            {Object.entries(PAPER_SIZES).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v.label}
-              </option>
-            ))}
-          </select>
+          <PaperControls key={packed?.id ?? 'scene'} composition={packed && packedParams ? {
+            widthMm: packedParams.widthMm, heightMm: packedParams.heightMm,
+            onChange: (widthMm, heightMm) => updateNodeParams(packed.id, {
+              widthMm, heightMm,
+              marginMm: Math.min(packedParams.marginMm, Math.min(widthMm, heightMm) / 3),
+              quiet: packedParams.quiet.map(region => {
+                const width = Math.max(1, Math.min(widthMm, region.width * widthMm / packedParams.widthMm));
+                const height = Math.max(1, Math.min(heightMm, region.height * heightMm / packedParams.heightMm));
+                return { ...region, width, height,
+                  x: Math.max(0, Math.min(widthMm - width, region.x * widthMm / packedParams.widthMm)),
+                  y: Math.max(0, Math.min(heightMm - height, region.y * heightMm / packedParams.heightMm)),
+                };
+              }),
+            }),
+          } : undefined} />
           <label className="toolbar-label" style={{ marginLeft: 8 }}>
             <input
               type="checkbox"

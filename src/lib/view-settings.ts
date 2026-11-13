@@ -84,8 +84,21 @@ export function paperDimensions(paperSize: string) {
   const mm = (value: string) => parseFloat(value) * (value.endsWith('in') ? 25.4 : 1);
   return { widthMm: mm(paper.physW), heightMm: mm(paper.physH) };
 }
-interface ViewSettings {
+export type PaperOrientation = 'portrait' | 'landscape';
+export type PaperUnit = 'mm' | 'cm' | 'in';
+export const PAPER_UNIT_MM: Record<PaperUnit, number> = { mm: 1, cm: 10, in: 25.4 };
+export const MIN_PAPER_MM = 40;
+export const MAX_PAPER_MM = 2000;
+
+export interface ViewSettings {
   paperSize: string;
+  paperOrientation: PaperOrientation;
+  customWidthMm: number;
+  customHeightMm: number;
+  paperUnit: PaperUnit;
+  setPaperOrientation: (orientation: PaperOrientation) => void;
+  setCustomPaperSize: (widthMm: number, heightMm: number) => void;
+  setPaperUnit: (unit: PaperUnit) => void;
   gridVisible: boolean;
   gridStyle: 'lines' | 'dots';
   gridSpacingMm: number;
@@ -98,11 +111,40 @@ interface ViewSettings {
 }
 // Display preferences deliberately stay outside scene undo and export data.
 export const useViewSettings = create<ViewSettings>((set) => ({
-  paperSize: 'square', gridVisible: false, gridStyle: 'lines',
+  paperSize: 'square', paperOrientation: 'portrait', customWidthMm: 210, customHeightMm: 297, paperUnit: 'mm',
+  setPaperOrientation: paperOrientation => { if (paperOrientation === 'portrait' || paperOrientation === 'landscape') set({ paperOrientation }); },
+  setPaperUnit: paperUnit => { if (Object.hasOwn(PAPER_UNIT_MM, paperUnit)) set({ paperUnit }); },
+  setCustomPaperSize: (widthMm, heightMm) => {
+    if (![widthMm, heightMm].every(value => Number.isFinite(value) && value >= MIN_PAPER_MM && value <= MAX_PAPER_MM)) return;
+    set({ paperSize: 'custom', customWidthMm: widthMm, customHeightMm: heightMm, paperOrientation: widthMm > heightMm ? 'landscape' : 'portrait' });
+  },
+  gridVisible: false, gridStyle: 'lines',
   gridSpacingMm: 10, gridColor: '#a1a1aa',
-  setPaperSize: paperSize => { if (Object.hasOwn(PAPER_SIZES, paperSize)) set({ paperSize }); },
+  setPaperSize: paperSize => {
+    if (paperSize === 'custom') { set(state => ({ paperSize, paperOrientation: state.customWidthMm > state.customHeightMm ? 'landscape' : 'portrait' })); return; }
+    if (Object.hasOwn(PAPER_SIZES, paperSize)) set({ paperSize, paperOrientation: PAPER_SIZES[paperSize].w > PAPER_SIZES[paperSize].h ? 'landscape' : 'portrait' });
+  },
   setGridVisible: gridVisible => set({ gridVisible }),
   setGridStyle: gridStyle => set({ gridStyle }),
   setGridSpacingMm: spacing => { if (Number.isFinite(spacing)) set({ gridSpacingMm: Math.max(1, Math.min(100, spacing)) }); },
   setGridColor: gridColor => { if (/^#[0-9a-f]{6}$/i.test(gridColor)) set({ gridColor }); },
 }));
+
+/** One source of truth for preview projection, physical grid and SVG export. */
+export function resolvePaper(state: Pick<ViewSettings, 'paperSize' | 'paperOrientation' | 'customWidthMm' | 'customHeightMm'>) {
+  const custom = state.paperSize === 'custom';
+  const preset = PAPER_SIZES[state.paperSize] ?? PAPER_SIZES.square;
+  const original = custom ? { widthMm: state.customWidthMm, heightMm: state.customHeightMm } : paperDimensions(state.paperSize);
+  const swap = state.paperOrientation === 'landscape' ? original.widthMm < original.heightMm : original.widthMm > original.heightMm;
+  const widthMm = swap ? original.heightMm : original.widthMm;
+  const heightMm = swap ? original.widthMm : original.heightMm;
+  // Keep existing presets unchanged; bound custom raster work while preserving
+  // the exact physical aspect ratio (SVG itself remains resolution independent).
+  const scale = Math.min(96 / 25.4, 2400 / Math.max(widthMm, heightMm));
+  return {
+    w: custom ? widthMm * scale : swap ? preset.h : preset.w,
+    h: custom ? heightMm * scale : swap ? preset.w : preset.h,
+    physW: `${widthMm}mm`, physH: `${heightMm}mm`, widthMm, heightMm,
+    label: custom ? 'Custom' : preset.label,
+  };
+}

@@ -31,8 +31,9 @@ test('paper frame and render projection match export dimensions in perspective a
       useSceneStore.getState().updateCamera(0, { ortho });
     }, ortho);
     for (const [key, width, height] of [['square',1024,1024],['A4',794,1123],['A4L',1123,794],['letter',816,1056]] as const) {
-      await page.getByLabel('Paper size', { exact: true }).selectOption(key);
-      await expect(page.locator('.viewport-paper')).toHaveAttribute('data-paper-size',key);
+      await page.getByLabel('Paper size', { exact: true }).selectOption(key === 'A4L' ? 'A4' : key);
+      if (key === 'A4L') await page.getByRole('button', { name: 'Landscape orientation', exact: true }).click();
+      await expect(page.locator('.viewport-paper')).toHaveAttribute('data-paper-size', key === 'A4L' ? 'A4' : key);
       await expect(page.locator('.viewport-svg > svg')).toHaveAttribute('viewBox',`0 0 ${width} ${height}`);
       const matchesExportProjection = await page.evaluate(async ({ width, height }) => {
         const { useSceneStore } = await import('/src/lib/store.ts');

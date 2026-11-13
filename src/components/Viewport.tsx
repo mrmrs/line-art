@@ -1,7 +1,7 @@
 import type { CameraConfig } from '../lib/types';
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { GridOverlay } from './GridOverlay';
-import { PAPER_SIZES, paperDimensions, useViewSettings } from '../lib/view-settings';
+import { resolvePaper, useViewSettings } from '../lib/view-settings';
 import './Viewport.css';
 import { useSceneStore } from '../lib/store';
 import { useOrbitCamera } from '../hooks/useOrbitCamera';
@@ -16,9 +16,10 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 400, height: 400 });
-  const paperSize = useViewSettings(s => s.paperSize);
-  const paper = PAPER_SIZES[paperSize];
-  const dimensions = paperDimensions(paperSize);
+  const viewSettings = useViewSettings();
+  const paperSize = viewSettings.paperSize;
+  const paper = resolvePaper(viewSettings);
+  const dimensions = { widthMm: paper.widthMm, heightMm: paper.heightMm };
   const fit = Math.max(0.01, Math.min(Math.max(1, size.width - 48) / paper.w, Math.max(1, size.height - 48) / paper.h));
   const paperSizePx = { width: paper.w * fit, height: paper.h * fit };
   const nodes = useSceneStore((s) => s.nodes);
