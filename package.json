@@ -13,10 +13,8 @@
   },
   "dependencies": {
     "@lnjs/core": "file:vendor/lnjs-core-0.8.2.tgz",
-    "@rolldown/binding-darwin-arm64": "^1.0.2",
     "earcut": "^3.0.2",
     "flatten-svg": "^0.3.0",
-    "lightningcss-darwin-arm64": "^1.32.0",
     "opentype.js": "^2.0.0",
     "poisson-disk-sampling": "^2.3.1",
     "polygon-clipping": "^0.15.7",
