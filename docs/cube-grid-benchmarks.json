@@ -1,0 +1,107 @@
+{
+  "fixture": "Uniform separated cubes; ortho camera [30,24,18], size=count*0.55, 1024 square; same scene identity for cached camera/preview renders; Apple Silicon local Node",
+  "before": [
+    {
+      "count": 20,
+      "cells": 8000,
+      "sourcePaths": 96000,
+      "sourceVertices": 192000,
+      "generationMs": 20,
+      "coldMs": 2099,
+      "paths": 11108,
+      "warmMs": 1987,
+      "firstPreviewMs": 14,
+      "cachedPreviewMs": 8
+    },
+    {
+      "count": 24,
+      "cells": 13824,
+      "sourcePaths": 165888,
+      "sourceVertices": 331776,
+      "generationMs": 12,
+      "error": "Occlusion candidate budget exceeded"
+    },
+    {
+      "count": 28,
+      "cells": 21952,
+      "sourcePaths": 263424,
+      "sourceVertices": 526848,
+      "generationMs": 14,
+      "error": "Path count must be an integer between 0 and 250000"
+    },
+    {
+      "count": 30,
+      "cells": 27000,
+      "sourcePaths": 324000,
+      "sourceVertices": 648000,
+      "generationMs": 16,
+      "error": "Path count must be an integer between 0 and 250000"
+    },
+    {
+      "count": 36,
+      "cells": 46656,
+      "sourcePaths": 559872,
+      "sourceVertices": 1119744,
+      "generationMs": 31,
+      "error": "Path count must be an integer between 0 and 250000"
+    }
+  ],
+  "after": [
+    {
+      "count": 20,
+      "cells": 8000,
+      "sourcePaths": 32000,
+      "sourceVertices": 128000,
+      "generationMs": 15,
+      "coldMs": 916,
+      "paths": 6427,
+      "warmMs": 865,
+      "firstPreviewMs": 12,
+      "cachedPreviewMs": 9
+    },
+    {
+      "count": 24,
+      "cells": 13824,
+      "sourcePaths": 55296,
+      "sourceVertices": 221184,
+      "generationMs": 9,
+      "coldMs": 1755,
+      "paths": 9343,
+      "warmMs": 1590,
+      "firstPreviewMs": 13,
+      "cachedPreviewMs": 8
+    },
+    {
+      "count": 28,
+      "cells": 21952,
+      "sourcePaths": 87808,
+      "sourceVertices": 351232,
+      "generationMs": 17,
+      "coldMs": 2821,
+      "paths": 12803,
+      "warmMs": 2699,
+      "firstPreviewMs": 13,
+      "cachedPreviewMs": 9
+    },
+    {
+      "count": 30,
+      "cells": 27000,
+      "sourcePaths": 108000,
+      "sourceVertices": 432000,
+      "generationMs": 19,
+      "coldMs": 3735,
+      "paths": 14737,
+      "warmMs": 3769,
+      "firstPreviewMs": 15,
+      "cachedPreviewMs": 11
+    },
+    {
+      "count": 36,
+      "cells": 46656,
+      "sourcePaths": 186624,
+      "sourceVertices": 746496,
+      "generationMs": 39,
+      "error": "Occlusion candidate budget exceeded"
+    }
+  ]
+}

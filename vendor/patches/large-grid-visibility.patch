@@ -1,0 +1,96 @@
+--- a/src/visibility.ts
++++ b/src/visibility.ts
+@@ -34,15 +34,17 @@
+   c: Vector;
+   minX: number;
+   minY: number;
++  minZ: number;
+   maxX: number;
+   maxY: number;
+ }
+ interface ProjectedBounds {
+-  minX: number; minY: number; maxX: number; maxY: number;
++  minX: number; minY: number; maxX: number; maxY: number; minZ?: number;
+ }
+ interface IndexNode<T extends ProjectedBounds = Face> {
+   minX: number;
+   minY: number;
++  minZ: number;
+   maxX: number;
+   maxY: number;
+   left?: IndexNode<T>;
+@@ -53,12 +55,14 @@
+   const n: IndexNode<T> = {
+     minX: Infinity,
+     minY: Infinity,
++    minZ: Infinity,
+     maxX: -Infinity,
+     maxY: -Infinity,
+   };
+   for (const f of faces) {
+     n.minX = Math.min(n.minX, f.minX);
+     n.minY = Math.min(n.minY, f.minY);
++    n.minZ = Math.min(n.minZ, f.minZ ?? -Infinity);
+     n.maxX = Math.max(n.maxX, f.maxX);
+     n.maxY = Math.max(n.maxY, f.maxY);
+   }
+@@ -177,6 +181,7 @@
+       c,
+       minX: Math.min(a.x, b.x, c.x),
+       minY: Math.min(a.y, b.y, c.y),
++      minZ: Math.min(a.z, b.z, c.z),
+       maxX: Math.max(a.x, b.x, c.x),
+       maxY: Math.max(a.y, b.y, c.y),
+     });
+@@ -413,24 +418,47 @@
+       maxX = Math.max(pa.x, pb.x),
+       minY = Math.min(pa.y, pb.y),
+       maxY = Math.max(pa.y, pb.y);
++    // Projected depth is affine on triangles and line segments. A face whose
++    // nearest depth is behind the farthest endpoint cannot hide this segment.
++    // Keep a conservative rounding allowance, including near/far clipped faces.
++    const maxZ = Math.max(pa.z, pb.z) + 256 * Number.EPSILON * Math.max(1, Math.abs(pa.z), Math.abs(pb.z));
++    let fullyHidden = false, sinceMerge = 0;
+     const visit = (n: IndexNode) => {
+-      if (n.maxX < minX || n.minX > maxX || n.maxY < minY || n.minY > maxY)
++      if (fullyHidden) return;
++      if (n.minZ > maxZ || n.maxX < minX || n.minX > maxX || n.maxY < minY || n.minY > maxY)
+         return;
+       if (n.faces)
+         for (const face of n.faces) {
++          if (face.minZ > maxZ || face.maxX < minX || face.minX > maxX || face.maxY < minY || face.minY > maxY) continue;
+           if (owner && this.roundOwners.has(owner) && face.owner === owner)
+             continue;
+           if (++this.stats.tests > (this.options.maxTests ?? 20000000))
+             throw new Error("Occlusion candidate budget exceeded");
+           const interval = hiddenByFace(pa, pb, face);
+-          if (interval) out.push(interval);
++          if (interval) {
++            out.push(interval);
++            if (interval[0] === 0 && interval[1] === 1) fullyHidden = true;
++            else if (++sinceMerge === 8) {
++              const merged = mergeIntervals(out);
++              out.length = 0;
++              out.push(...merged);
++              sinceMerge = 0;
++              fullyHidden = out.length === 1 && out[0][0] === 0 && out[0][1] === 1;
++            }
++            // Hidden intervals only accumulate: later shapes cannot reveal an
++            // already fully covered segment. Do not widen intervals or close gaps.
++            if (fullyHidden) return;
++          }
+         }
+       else {
+-        if (n.left) visit(n.left);
+-        if (n.right) visit(n.right);
++        const first = n.left && n.right && n.right.minZ < n.left.minZ ? n.right : n.left;
++        const second = first === n.left ? n.right : n.left;
++        if (first) visit(first);
++        if (second) visit(second);
+       }
+     };
+     visit(this.root);
++    if (fullyHidden) return [[0, 1]];
+     if (owner && this.roundOwners.has(owner))
+       this.roundSelfIntervals(a, b, this.roundOwners.get(owner)!, out);
+     const query = { minX, maxX, minY, maxY };

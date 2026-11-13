@@ -12,7 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@lnjs/core": "file:vendor/lnjs-core-0.8.1.tgz",
+    "@lnjs/core": "file:vendor/lnjs-core-0.8.2.tgz",
     "@rolldown/binding-darwin-arm64": "^1.0.2",
     "earcut": "^3.0.2",
     "flatten-svg": "^0.3.0",

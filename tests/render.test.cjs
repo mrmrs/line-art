@@ -970,3 +970,89 @@ test('physical SVG exports identify Skullcat without adding plotted marks', () =
     assert.doesNotMatch(preview, /skullcat-provenance/);
   }
 });
+
+test('cube grid trails cover every original edge exactly once with shared corners', () => {
+  const generated = generateCubeGrid({ ...DEFAULT_CUBE_GRID_PARAMS, countX: 2, countY: 2, countZ: 2, sizeMethod: 'noise' });
+  const edges = paths => paths.flatMap(path => path.slice(1).map((point, i) => [path[i], point]
+    .map(p => `${p.x},${p.y},${p.z}`).sort().join('|'))).sort();
+  for (const cell of generated) {
+    const paths = cell.paths();
+    assert.equal(paths.length, 4);
+    assert.equal(new Set(paths.flat()).size, 8);
+    assert.deepEqual(edges(paths), edges(new ln.Cube(cell.min, cell.max).paths()));
+  }
+});
+
+test('visibility prunes occluders behind a segment without spending candidate budget', () => {
+  const scene = new ln.Scene();
+  for (let i = 0; i < 100; i++) scene.add(new ln.Cube(new ln.Vector(-1,-1,-2-i), new ln.Vector(1,1,-1.5-i)));
+  const eye = new ln.Vector(0,0,10);
+  const matrix = ln.lookAt(eye,new ln.Vector(0,0,0),new ln.Vector(0,1,0)).orthographic(-2,2,-2,2,.1,200);
+  const visibility = new ln.Visibility(scene,matrix,eye,1024,1024,{maxTests:1});
+  assert.deepEqual(visibility.visible(new ln.Vector(-.2,.3,0),new ln.Vector(.2,.3,0)),[[0,1]]);
+  assert.equal(visibility.stats.tests,0);
+});
+
+test('visibility terminates only when occluder intervals cover the complete segment', () => {
+  const eye=new ln.Vector(0,0,10), matrix=ln.lookAt(eye,new ln.Vector(0,0,0),new ln.Vector(0,1,0)).orthographic(-2,2,-2,2,.1,200);
+  const scene=new ln.Scene();
+  for(let i=0;i<100;i++) scene.add(new ln.Triangle(new ln.Vector(-2,-2,1+i*.01),new ln.Vector(2,-2,1+i*.01),new ln.Vector(0,2,1+i*.01)));
+  const visibility=new ln.Visibility(scene,matrix,eye,1024,1024,{maxTests:4});
+  assert.deepEqual(visibility.visible(new ln.Vector(-.2,0,0),new ln.Vector(.2,0,0)),[]);
+  assert.ok(visibility.stats.tests<=4);
+  const slit=new ln.Scene();
+  slit.add(new ln.Cube(new ln.Vector(-2,-1,1),new ln.Vector(-.00001,1,2)));
+  slit.add(new ln.Cube(new ln.Vector(.00001,-1,1),new ln.Vector(2,1,2)));
+  const runs=new ln.Visibility(slit,matrix,eye,1024,1024).visible(new ln.Vector(-1,0,0),new ln.Vector(1,0,0));
+  assert.equal(runs.length,1);
+  assert.ok(Math.abs(runs[0][0]-.499995)<1e-10);
+  assert.ok(Math.abs(runs[0][1]-.500005)<1e-10);
+});
+
+test('a dense 30 cubed grid fits the unchanged geometry and occlusion budgets', () => {
+  clearGeneratorCache();
+  const node={id:'dense-30',name:'Dense grid',type:'cube-grid',visible:true,transform:DEFAULT_TRANSFORM,slicing:DEFAULT_SLICING,
+    params:{...DEFAULT_CUBE_GRID_PARAMS,countX:30,countY:30,countZ:30},fills:[]};
+  const result=renderScene([node],{...camera,eye:[30,24,18],orthoSize:16.5},1024,1024,settings);
+  assert.ok(result.pathCount>5000);
+  assert.doesNotMatch(result.svg,/NaN|Infinity/);
+  clearGeneratorCache();
+});
+
+test('accelerated visibility matches the previous renderer across projection and near-plane cases', () => {
+  const { mkdtempSync, rmSync }=require('node:fs');
+  const { tmpdir }=require('node:os');
+  const { execFileSync }=require('node:child_process');
+  const temp=mkdtempSync(join(tmpdir(),'line-art-grid-oracle-'));
+  try {
+    execFileSync('tar',['-xzf',join(__dirname,'../vendor/lnjs-core-0.8.1.tgz'),'-C',temp]);
+    const previous=require(join(temp,'package/lib/index.js'));
+    const make=(core,ortho,close)=>{
+      const v=(x,y,z)=>new core.Vector(x,y,z),scene=new core.Scene();
+      for(let z=0;z<4;z++)for(let y=0;y<4;y++)for(let x=0;x<4;x++) {
+        const box=new core.Cube(v(x-2,y-2,z-2),v(x-1.4,y-1.4,z-1.4));
+        scene.add(new core.TransformedShape(box,core.identity().rotate(v(0,1,0),.23).scale(v(1,.8,1.1))));
+      }
+      scene.add(new core.Sphere(v(0,0,0),.8));
+      const eye=close?v(0,0,2):v(8,6,5);
+      const view=core.lookAt(eye,v(0,0,0),v(0,1,0));
+      const matrix=ortho?view.orthographic(-4,4,-4,4,1,30):view.perspective(55,1,1,30);
+      return {core,matrix,visibility:new core.Visibility(scene,matrix,eye,512,512)};
+    };
+    let seed=123456789;
+    const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296*10-5;};
+    for(const ortho of [false,true])for(const close of [false,true]) {
+      const a=make(previous,ortho,close),b=make(ln,ortho,close);
+      for(let i=0;i<300;i++) {
+        const endpoints=[[rand(),rand(),rand()],[rand(),rand(),rand()]];
+        const run=({core,matrix,visibility})=>{
+          const clipped=core.clipSegment(new core.Vector(...endpoints[0]),new core.Vector(...endpoints[1]),matrix);
+          return clipped?visibility.visible(...clipped):[];
+        };
+        const expected=run(a),actual=run(b);
+        assert.equal(actual.length,expected.length,`interval count: ortho=${ortho}, close=${close}, segment=${i}`);
+        expected.forEach((interval,j)=>interval.forEach((value,k)=>assert.ok(Math.abs(value-actual[j][k])<1e-10)));
+      }
+    }
+  } finally { rmSync(temp,{recursive:true,force:true}); }
+});

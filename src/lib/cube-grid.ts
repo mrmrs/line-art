@@ -819,6 +819,20 @@ function precomputeMaze(
 
 // --- Main generator ---
 
+// Four edge-disjoint trails cover all twelve cube edges exactly once. Sharing
+// the eight corners avoids allocating twenty-four vectors and twelve separate
+// paths per cell; the inherited analytic cube still handles occlusion unchanged.
+class GridCube extends ln.Cube {
+  paths(): ln.Paths {
+    const corners: ln.Vector[] = [];
+    for (const x of [this.min.x, this.max.x])
+      for (const y of [this.min.y, this.max.y])
+        for (const z of [this.min.z, this.max.z]) corners.push(new ln.Vector(x, y, z));
+    return [[0, 1, 3, 7], [1, 5, 7, 6], [2, 0, 4, 5], [3, 2, 6, 4]]
+      .map(trail => trail.map(index => corners[index]));
+  }
+}
+
 export function generateCubeGrid(params: CubeGridParams): ln.Cube[] {
   const cubes: ln.Cube[] = [];
 
@@ -865,7 +879,7 @@ export function generateCubeGrid(params: CubeGridParams): ln.Cube[] {
 
         const half = size * 0.5;
         cubes.push(
-          new ln.Cube(
+          new GridCube(
             new ln.Vector(x - half, y - half, z - half),
             new ln.Vector(x + half, y + half, z + half),
           ),
