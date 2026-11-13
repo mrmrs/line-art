@@ -1,3 +1,4 @@
+import { GridOverlay } from './GridOverlay';
 import { randomizeComposition } from '../lib/randomize';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SceneNode } from '../lib/types';
@@ -81,6 +82,7 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
       <div className="compose-stage">
         <div className="compose-paper" style={{ aspectRatio: `${p.widthMm} / ${p.heightMm}`, width: `min(100%, calc((100vh - 235px) * ${p.widthMm / p.heightMm}))` }}>
           <div className="compose-art" dangerouslySetInnerHTML={{ __html: render.svg }} />
+          <GridOverlay widthMm={p.widthMm} heightMm={p.heightMm} />
           <svg className="compose-selection" viewBox={`0 0 ${p.widthMm} ${p.heightMm}`} aria-label="Select composition forms">
             <g transform={`translate(0 ${p.heightMm}) scale(1 -1)`}>
               {p.quiet.map(q => <rect key={q.id} x={q.x} y={q.y} width={q.width} height={q.height} className="compose-quiet" />)}

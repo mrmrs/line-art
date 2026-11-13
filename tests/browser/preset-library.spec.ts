@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('presets offer compact grid and list views with keyboard descriptions and atomic replacement', async ({ page }) => {
   await page.goto('/');

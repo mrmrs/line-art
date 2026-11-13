@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('fork renders scaled solids across cameras and exports at physical precision', async ({
   page,

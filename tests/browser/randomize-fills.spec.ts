@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('shape randomize is undoable and cube grids expose face fills', async ({ page }) => {
   await page.goto('/');

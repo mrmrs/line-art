@@ -1,5 +1,8 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
 import type { CameraConfig } from '../lib/types';
+import { useCallback, useRef, useEffect, useState } from 'react';
+import { GridOverlay } from './GridOverlay';
+import { PAPER_SIZES, paperDimensions, useViewSettings } from '../lib/view-settings';
+import './Viewport.css';
 import { useSceneStore } from '../lib/store';
 import { useOrbitCamera } from '../hooks/useOrbitCamera';
 import { useWorkerRender, sameCameraView } from '../hooks/useWorkerRender';
@@ -13,9 +16,17 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 400, height: 400 });
+  const paperSize = useViewSettings(s => s.paperSize);
+  const paper = PAPER_SIZES[paperSize];
+  const dimensions = paperDimensions(paperSize);
+  const fit = Math.max(0.01, Math.min(Math.max(1, size.width - 48) / paper.w, Math.max(1, size.height - 48) / paper.h));
+  const paperSizePx = { width: paper.w * fit, height: paper.h * fit };
   const nodes = useSceneStore((s) => s.nodes);
   const storedCamera = useSceneStore((s) => s.cameras[cameraIndex]);
   const renderSettings = useSceneStore((s) => s.renderSettings);
+  const activeCameraIndex = useSceneStore(s => s.activeCameraIndex);
+  const setActiveCameraIndex = useSceneStore(s => s.setActiveCameraIndex);
+  const selectCamera = useCallback(() => setActiveCameraIndex(cameraIndex), [cameraIndex, setActiveCameraIndex]);
   const updateCamera = useSceneStore((s) => s.updateCamera);
 
   useEffect(() => {
@@ -34,16 +45,17 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   }, []);
 
   const commitCamera = useCallback((camera: CameraConfig) => updateCamera(cameraIndex, camera), [cameraIndex, updateCamera]);
-  const { camera, isDragging, isInteracting, handlers, handleWheel } = useOrbitCamera(storedCamera, commitCamera, size);
+  const { camera, isDragging, isInteracting, handlers, handleWheel } = useOrbitCamera(storedCamera, commitCamera, paperSizePx);
   const { svg, rendering, renderTimeMs, pathCount, error, cancel, retry, renderedCamera, preview } =
-    useWorkerRender(nodes, camera, size.width, size.height, renderSettings, isInteracting);
+    useWorkerRender(nodes, camera, paper.w, paper.h, renderSettings, isInteracting);
 
   useEffect(() => {
     const element = overlayRef.current;
     if (!element) return;
-    element.addEventListener('wheel', handleWheel, { passive: false });
-    return () => element.removeEventListener('wheel', handleWheel);
-  }, [handleWheel]);
+    const onWheel = (event: WheelEvent) => { selectCamera(); handleWheel(event); };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [handleWheel, selectCamera]);
 
   // Compensate only against the camera that produced the displayed SVG. A
   // document commit must not remove feedback while its render is still pending.
@@ -54,15 +66,19 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
   const currentZoom = camera.zoom ?? 1;
 
   return (
-    <div className="viewport" ref={containerRef} style={{ background: renderSettings.backgroundColor }}>
-      <div className="viewport-overlay" ref={overlayRef} {...handlers}
+    <div className="viewport" ref={containerRef} data-active={activeCameraIndex === cameraIndex} onPointerDownCapture={selectCamera} onFocus={selectCamera}>
+      <div className="viewport-paper" data-paper-size={paperSize} aria-label="Paper edge; export margins are configured separately" style={{ ...paperSizePx, background: renderSettings.backgroundColor }}>
+      <div className="viewport-overlay" ref={overlayRef} {...handlers} tabIndex={0} role="region" aria-label={`${camera.name} canvas`}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }} />
       <div className="viewport-svg" data-preview={preview ? 'true' : 'false'}
         style={{ transform: cssScale !== 1 ? `scale(${cssScale})` : undefined, transformOrigin: 'center center' }}
         dangerouslySetInnerHTML={{ __html: svg }} />
+      <GridOverlay {...dimensions} />
+      </div>
       {showLabel && (
         <div className="viewport-label">
           <span className="viewport-camera-name">{camera.name}</span>
+          {activeCameraIndex === cameraIndex && <span className="viewport-badge">Export view</span>}
           {camera.ortho && <span className="viewport-badge">Ortho</span>}
           {currentZoom !== 1 && <span className="viewport-badge">{currentZoom.toFixed(1)}x</span>}
         </div>

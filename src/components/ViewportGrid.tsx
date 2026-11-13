@@ -6,9 +6,11 @@ import { Viewport } from './Viewport';
 // =============================================================================
 
 export function ViewportGrid() {
+  const activeCameraIndex = useSceneStore(s => s.activeCameraIndex);
   const viewMode = useSceneStore((s) => s.viewMode);
 
   const gridConfig = getGridConfig(viewMode);
+  if (viewMode === 'single') gridConfig.cameras = [activeCameraIndex];
 
   return (
     <div

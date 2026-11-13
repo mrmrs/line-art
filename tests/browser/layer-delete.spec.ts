@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('layer trash control appears on hover and focus and deletes selected layers', async ({ page }) => {
   await page.goto('/');

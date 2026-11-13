@@ -7,84 +7,8 @@ import { ExportPanel } from './ExportPanel';
 import { downloadText } from '../lib/export-svg';
 import type { ViewMode } from '../lib/types';
 
-// Paper sizes — pixel dimensions at 96 DPI for the render viewport AND
-// physical dimensions for the exported <svg width/height>. Plotters honor the
-// physical units; viewBox stays in pixel-space so the render coordinates map
-// 1:1 to plot coordinates.
-const PAPER_SIZES: Record<
-  string,
-  {
-    w: number;
-    h: number; // pixels (render size)
-    physW: string;
-    physH: string; // physical size attributes
-    label: string;
-  }
-> = {
-  square: {
-    w: 1024,
-    h: 1024,
-    physW: '250mm',
-    physH: '250mm',
-    label: 'Square 250mm',
-  },
-  A4: {
-    w: 794,
-    h: 1123,
-    physW: '210mm',
-    physH: '297mm',
-    label: 'A4 (210×297mm)',
-  },
-  A4L: {
-    w: 1123,
-    h: 794,
-    physW: '297mm',
-    physH: '210mm',
-    label: 'A4 landscape',
-  },
-  A3: {
-    w: 1123,
-    h: 1587,
-    physW: '297mm',
-    physH: '420mm',
-    label: 'A3 (297×420mm)',
-  },
-  A3L: {
-    w: 1587,
-    h: 1123,
-    physW: '420mm',
-    physH: '297mm',
-    label: 'A3 landscape',
-  },
-  A2: {
-    w: 1587,
-    h: 2245,
-    physW: '420mm',
-    physH: '594mm',
-    label: 'A2 (420×594mm)',
-  },
-  letter: {
-    w: 816,
-    h: 1056,
-    physW: '8.5in',
-    physH: '11in',
-    label: 'US Letter (8.5×11in)',
-  },
-  tabloid: {
-    w: 1056,
-    h: 1632,
-    physW: '11in',
-    physH: '17in',
-    label: 'Tabloid (11×17in)',
-  },
-  '12x18': {
-    w: 1152,
-    h: 1728,
-    physW: '12in',
-    physH: '18in',
-    label: '12×18 in',
-  },
-};
+import { PAPER_SIZES, useViewSettings } from '../lib/view-settings';
+import { GridControls } from './GridControls';
 
 // =============================================================================
 // Top Toolbar: view mode, export, settings
@@ -103,8 +27,8 @@ export function Toolbar() {
   const renderSettings = useSceneStore((s) => s.renderSettings);
   const updateRenderSettings = useSceneStore((s) => s.updateRenderSettings);
 
-  const [paperSize, setPaperSize] =
-    useState<keyof typeof PAPER_SIZES>('square');
+  const paperSize = useViewSettings(s => s.paperSize);
+  const setPaperSize = useViewSettings(s => s.setPaperSize);
   const [optimize, setOptimize] = useState(true);
 
   const [exportOpen, setExportOpen] = useState(false);
@@ -124,7 +48,7 @@ export function Toolbar() {
               <rect width="1.25" height="2" fill="currentColor" />
             </pattern>
           </defs>
-          <path fill="url(#studio-mark-stripes)" d="M16 7 C13 7 2 9 2 16 C2 23 6 23 10 24 L11 28 L12 26 L20 26 L21 28 L22 24 C26 23 30 23 30 16 C30 9 19 7 16 7 M4 18 A4 4 0 0 1 12 18 A4 4 0 0 1 4 18 M20 18 A4 4 0 0 1 28 18 A4 4 0 0 1 20 18" />
+          <path transform="translate(0 -1.5)" fill="url(#studio-mark-stripes)" d="M16 7 C13 7 2 9 2 16 C2 23 6 23 10 24 L11 28 L12 26 L20 26 L21 28 L22 24 C26 23 30 23 30 16 C30 9 19 7 16 7 M4 18 A4 4 0 0 1 12 18 A4 4 0 0 1 4 18 M20 18 A4 4 0 0 1 28 18 A4 4 0 0 1 20 18" />
         </svg>
       </div>
 
@@ -220,7 +144,8 @@ export function Toolbar() {
             onChange={(e) =>
               setPaperSize(e.target.value as keyof typeof PAPER_SIZES)
             }
-            title="Export size"
+            aria-label="Paper size"
+            title="Paper size"
           >
             {packedParams && <option value="composition">{packedParams.widthMm} × {packedParams.heightMm} mm</option>}
             {Object.entries(PAPER_SIZES).map(([k, v]) => (
@@ -243,6 +168,7 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar-right">
+        <GridControls />
         <button
           className="btn btn-sm"
           onClick={() => useSceneStore.temporal.getState().undo()}
@@ -271,13 +197,13 @@ export function Toolbar() {
             }
           }}
         >
-          Save scene
+          Save
         </button>
         <button
           className="btn btn-sm"
           onClick={() => fileInput.current?.click()}
         >
-          Open scene
+          Open
         </button>
         <input
           ref={fileInput}

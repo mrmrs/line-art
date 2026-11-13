@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 
 test('packed composition generates, preserves pins, refills, reloads and exports at physical size', async ({ page }) => {

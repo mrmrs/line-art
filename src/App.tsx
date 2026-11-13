@@ -1,3 +1,4 @@
+import { useCounters } from './hooks/useCounters';
 import { ComposeWorkspace } from './components/ComposeWorkspace';
 import { useStorageStatus, useSceneStore } from './lib/store';
 import { Toolbar } from './components/Toolbar';
@@ -9,6 +10,7 @@ import { useUndoShortcuts } from './hooks/useUndoShortcuts';
 
 export default function App() {
   useUndoShortcuts();
+  useCounters();
   const composition = useSceneStore(s => s.nodes.find(n => n.id === s.selectedId && n.type === 'packed-composition'));
   const { ready, error } = useStorageStatus();
   if (!ready)

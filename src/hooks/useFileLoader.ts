@@ -1,3 +1,4 @@
+import { counters } from '../lib/counters';
 import { useCallback } from 'react';
 import { useSceneStore, reportError } from '../lib/store';
 import { LIMITS } from '../lib/limits';
@@ -77,13 +78,16 @@ export function useFileLoader() {
           continue;
         }
         if (!result) continue;
-        if (result.kind === 'mesh') {
-          addNode('mesh', result.name, result.params, { ...DEFAULT_TRANSFORM });
-        } else if (result.kind === 'svg-extrude') {
-          addNode('svg-extrude', result.name, result.params, {
-            ...DEFAULT_TRANSFORM,
-          });
-        }
+        try {
+          const id = result.kind === 'mesh'
+            ? addNode('mesh', result.name, result.params, { ...DEFAULT_TRANSFORM })
+            : addNode('svg-extrude', result.name, result.params, { ...DEFAULT_TRANSFORM });
+          if (useSceneStore.getState().nodes.some(node => node.id === id)) {
+            void counters.increment(result.kind === 'svg-extrude'
+              ? 'SKULLCAT_SVG_IMPORT'
+              : result.params.format === 'obj' ? 'SKULLCAT_OBJ_IMPORT' : 'SKULLCAT_STL_IMPORT');
+          }
+        } catch (error) { reportError(error); }
       }
     },
     [addNode],

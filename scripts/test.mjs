@@ -12,6 +12,7 @@ try {
       'node_modules/typescript/bin/tsc',
       'src/lib/render.ts',
       'src/lib/randomize.ts',
+      'src/lib/counters.ts',
       'src/lib/presets.ts',
       'src/lib/composition-selection.ts',
       'src/lib/plotter-optimize.ts',
@@ -38,7 +39,7 @@ try {
   else {
     const tests = spawnSync(
       process.execPath,
-      ['--test', 'tests/render.test.cjs', 'tests/composition.test.cjs', 'tests/randomize.test.cjs'],
+      ['--test', 'tests/render.test.cjs', 'tests/composition.test.cjs', 'tests/randomize.test.cjs', 'tests/counters.test.cjs'],
       {
         stdio: 'inherit',
         env: { ...process.env, AUDIT_TEST_OUTPUT: output },

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import type { CompositionParams } from '../../src/lib/composition-types';
 
 test('shared isometric preview keeps all box edges on three axes and free mode is an explicit regeneration choice', async ({ page }) => {

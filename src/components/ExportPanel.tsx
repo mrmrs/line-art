@@ -1,3 +1,5 @@
+import { counters } from '../lib/counters';
+import { useCounters } from '../hooks/useCounters';
 import type { SceneNode, CameraConfig } from '../lib/types';
 import { useEffect, useRef, useState } from 'react';
 import { useSceneStore } from '../lib/store';
@@ -22,6 +24,7 @@ export function ExportPanel({
   onClose: () => void;
   composition?: { nodes: SceneNode[]; camera: CameraConfig; marginMm: number };
 }) {
+  const totals = useCounters();
   const [plot, setPlot] = useState<PlotSettings>(() => {
     try {
       return {
@@ -212,6 +215,7 @@ export function ExportPanel({
           {(stats.estimatedSeconds / 60).toFixed(1)} min
         </p>
       )}
+      {totals.SKULLCAT_SVG_EXPORT !== undefined && <p className="muted">{totals.SKULLCAT_SVG_EXPORT.toLocaleString()} SVG exports worldwide</p>}
       <div className="export-actions">
         {busy ? (
           <button className="btn" onClick={cancel}>
@@ -225,17 +229,24 @@ export function ExportPanel({
         <button
           className="btn"
           disabled={!svg || busy}
-          onClick={() => downloadSVG(svg)}
+          onClick={() => {
+            try {
+              downloadSVG(svg);
+              void counters.increment('SKULLCAT_SVG_EXPORT');
+            } catch (error) { setError(String(error)); }
+          }}
         >
           Download SVG
         </button>
         <button
           className="btn"
           disabled={!svg || busy}
-          onClick={() => {
-            void copySVGToClipboard(svg)
-              .then(() => setStatus('SVG copied'))
-              .catch((e) => setError(String(e)));
+          onClick={async () => {
+            try {
+              await copySVGToClipboard(svg);
+              setStatus('SVG copied');
+              void counters.increment('SKULLCAT_SVG_EXPORT');
+            } catch (error) { setError(String(error)); }
           }}
         >
           Copy SVG

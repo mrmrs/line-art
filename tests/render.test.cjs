@@ -953,3 +953,20 @@ test('navigation preview includes every path channel and leaves exact rendering 
       assert.ok(Math.abs(value - previewEdges[j][k][axis]) <= .005001, 'preview and exact camera projections differ'))));
   }
 });
+
+test('physical SVG exports identify Skullcat without adding plotted marks', () => {
+  const { toStyledSVG, multiPenSvg } = load('svg-output.js');
+  const paths = [[new ln.Vector(1, 2, 0), new ln.Vector(3, 4, 0)]];
+  for (const serialize of [
+    physical => toStyledSVG(paths, 100, 100, DEFAULT_RENDER_SETTINGS, physical),
+    physical => multiPenSvg([{pen: 1, paths}], 100, 100, DEFAULT_RENDER_SETTINGS, {}, physical),
+  ]) {
+    const preview = serialize();
+    const exported = serialize({width: '250mm', height: '250mm'});
+    assert.match(exported, /data-generator="skullcat-studio"/);
+    assert.match(exported, /<dc:creator>mrmrs<\/dc:creator>/);
+    assert.match(exported, /<metadata id="skullcat-provenance">/);
+    assert.equal(exported.match(/<polyline[^>]+>/g).join(''), preview.match(/<polyline[^>]+>/g).join(''));
+    assert.doesNotMatch(preview, /skullcat-provenance/);
+  }
+});

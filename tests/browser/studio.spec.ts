@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('scene reload, SVG modes, export and cancellation', async ({ page }) => {
   const errors: string[] = [];

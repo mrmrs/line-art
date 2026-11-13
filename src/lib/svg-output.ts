@@ -4,6 +4,9 @@ export interface PenGroup {
   pen: number;
   paths: ln.Paths;
 }
+// Attribution is metadata, never a plotted path or a watermark.
+const EXPORT_IDENTITY = `<metadata id="skullcat-provenance"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description rdf:about=""><dc:title>Skullcat plotter artwork</dc:title><dc:creator>mrmrs</dc:creator><dc:source>https://github.com/mrmrs/line-art</dc:source><dc:description>Created with Skullcat — the line art studio by mrmrs.</dc:description></rdf:Description></rdf:RDF></metadata>`;
+
 // Drop adjacent coordinates that collapse at serialization precision. A zero-
 // length polyline otherwise becomes a visible dot with round stroke caps.
 function svgPoints(path: ln.Paths[number]): string | null {
@@ -37,10 +40,11 @@ export function toStyledSVG(
   const wAttr = physical?.width ?? `${width}`;
   const hAttr = physical?.height ?? `${height}`;
   lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${wAttr}" height="${hAttr}" ` +
+    `<svg xmlns="http://www.w3.org/2000/svg"${physical ? ' data-generator="skullcat-studio"' : ''} width="${wAttr}" height="${hAttr}" ` +
       `viewBox="0 0 ${width} ${height}" ` +
       `style="background:${backgroundColor}">`,
   );
+  if (physical) lines.push(EXPORT_IDENTITY);
   lines.push(`<g transform="translate(0,${height}) scale(1,-1)">`);
   lines.push(
     `<g id="pen-1" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" fill="none">`,
@@ -72,9 +76,10 @@ export function multiPenSvg(
   const wAttr = physical?.width ?? `${width}`;
   const hAttr = physical?.height ?? `${height}`;
   lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${wAttr}" height="${hAttr}" ` +
+    `<svg xmlns="http://www.w3.org/2000/svg"${physical ? ' data-generator="skullcat-studio"' : ''} width="${wAttr}" height="${hAttr}" ` +
       `viewBox="0 0 ${width} ${height}" style="background:${backgroundColor}">`,
   );
+  if (physical) lines.push(EXPORT_IDENTITY);
   lines.push(`<g transform="translate(0,${height}) scale(1,-1)">`);
   for (const grp of penGroups) {
     const color = penColors[grp.pen] ?? strokeColor;

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 
 const baseline = process.env.NAV_BASELINE === '1';
 
@@ -260,7 +260,7 @@ test('orthographic wheel zoom reuses exact artwork and keeps viewport bounds sta
     await page.mouse.wheel(0,4);
     await page.waitForTimeout(25);
     expect(await overlay.boundingBox()).toEqual(box);
-    expect(await page.locator('.viewport').first().evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(255, 255, 255)');
+    expect(await page.locator('.viewport-paper').first().evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(255, 255, 255)');
     expect((await svg.innerHTML()) === before).toBe(true);
   }
   const requests=await page.evaluate(start=>(window as unknown as {navMetrics:{requests:{t:number}[]}}).navMetrics.requests.filter(r=>r.t>start).length,start);

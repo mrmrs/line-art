@@ -1,0 +1,30 @@
+import { test, expect } from './fixtures';
+
+test('grid controls support keyboard settings and compact file actions', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Open', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+  const toggle = page.getByRole('button', { name: 'Show grid', exact: true });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  const settings = page.getByRole('button', { name: 'Grid settings', exact: true });
+  await settings.click();
+  const panel = page.getByRole('dialog', { name: 'Grid settings', exact: true });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel('Spacing (mm)')).toBeFocused();
+  await panel.getByLabel('Spacing (mm)').fill('15');
+  await panel.getByRole('combobox', { name: 'Style', exact: true }).selectOption('dots');
+  await panel.getByLabel('Color', { exact: true }).fill('#aabbcc');
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(settings).toBeFocused();
+  await settings.click();
+  await expect(panel.getByLabel('Spacing (mm)')).toHaveValue('15');
+  await expect(panel.getByRole('combobox', { name: 'Style', exact: true })).toHaveValue('dots');
+  await expect(panel.getByLabel('Color', { exact: true })).toHaveValue('#aabbcc');
+  await page.getByRole('img', { name: 'Studio mark' }).click();
+  await expect(panel).toHaveCount(0);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+});

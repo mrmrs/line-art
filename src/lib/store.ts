@@ -378,10 +378,21 @@ export const useSceneStore = create<SceneStore>()(
           }));
         },
 
-        setActiveCameraIndex: (index) => set({ activeCameraIndex: index }),
+        setActiveCameraIndex: (index) => {
+          if (!Number.isInteger(index) || index < 0 || index >= useSceneStore.getState().cameras.length || index === useSceneStore.getState().activeCameraIndex) return;
+          const history = useSceneStore.temporal.getState();
+          const tracking = history.isTracking;
+          if (tracking) history.pause();
+          try { set({ activeCameraIndex: index }); }
+          finally { if (tracking) history.resume(); }
+        },
 
         // --- View ---
-        setViewMode: (mode) => set({ viewMode: mode }),
+        setViewMode: (mode) => set(s => ({
+          viewMode: mode,
+          activeCameraIndex: mode === 'single' || s.activeCameraIndex < (mode === '1x2' ? 2 : mode === '2x2' ? 4 : 6)
+            ? s.activeCameraIndex : 0,
+        })),
 
         // --- Settings ---
         updateRenderSettings: (updates) => {

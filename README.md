@@ -49,3 +49,22 @@ Use **Randomize** in Shape or Fill controls for bounded variations. Imported sou
 Cube grids support volume hatching, angled surface hatching, stippling and contours. Surface hatch and surface dots can target X sides, Y sides or top/bottom faces (world axes). Combine fill layers with different angles or pens for side-specific treatments. Geometry budgets still apply to dense grids.
 
 The development toolchain overrides `minimatch` to its patched 11.x release while upstream lint packages still request 10.x. Lint and production build are verified with this override.
+
+## Export identity and event counts
+
+Physical SVG exports include `data-generator="skullcat-studio"` and RDF/Dublin Core metadata identifying **Skullcat**, **mrmrs**, and this source repository. Attribution adds no plotted geometry.
+
+Anonymous event totals use the existing Cloudflare counter at `https://ts-gen-count.adam-f8f.workers.dev`:
+
+| Key | Event |
+| --- | --- |
+| `SKULLCAT_SVG_EXPORT` | Download SVG, or successful Copy SVG |
+| `SKULLCAT_OBJ_IMPORT` | OBJ file accepted into the scene |
+| `SKULLCAT_STL_IMPORT` | STL file accepted into the scene |
+| `SKULLCAT_SVG_IMPORT` | SVG file accepted into the scene |
+
+Counts are read on initial load. Each event sends one asynchronous POST, followed by a GET after success. Failures never block artwork actions and POSTs are not retried. Requests send only the event key, never filenames or drawing content. Browser tests mock the service to keep test activity out of the live counters.
+
+## Paper and alignment guides
+
+The 3D preview is framed to the selected export paper, using the same camera projection and render dimensions as export. Click a view to make it the export camera; switching back to a single view keeps that camera. The grid button toggles display-only alignment guides, with line/dot style, spacing in millimeters, and color settings. These guides also work in the composition workspace and never enter exported artwork.
