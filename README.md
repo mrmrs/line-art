@@ -33,7 +33,7 @@ Math formulas accept arithmetic, comparisons, conditionals, variables, and commo
 
 ## Plot output
 
-The right sidebar’s **Document** section contains stroke, background, quality, paper and path optimization settings. **Export SVG** in the header opens physical output settings for either a regular scene or a packed composition. Set margins, SVG stroke width in millimetres, simplification tolerance, endpoint joining, duplicate removal, and stroke direction. **Download SVG** renders a fresh snapshot and downloads it in one action; **Copy SVG** becomes available for that snapshot. Export and preview workers can be cancelled.
+The right sidebar’s **Document** section contains stroke, background, quality, paper and path optimization settings. **Export SVG** in the header opens physical output settings for either a regular scene or a packed composition. Set margins, SVG stroke width in millimetres, simplification tolerance, endpoint joining, duplicate removal, and stroke direction. **Download SVG** and **Copy SVG** are always visible. Each renders a fresh snapshot using the current settings, then downloads the file or copies the SVG source. Export and preview workers can be cancelled.
 
 Margins clip paths and reserve half the SVG stroke width so strokes stay within the margin. Joining never bridges an intentional gap. The app creates SVG files; it does not control a plotter. Plotting speed, lift duration and device timing estimates are not part of the export interface.
 

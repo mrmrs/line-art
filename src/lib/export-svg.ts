@@ -19,6 +19,15 @@ export function downloadText(text: string, filename: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function copySVGToClipboard(svgString: string): Promise<void> {
-  return navigator.clipboard.writeText(svgString);
+export async function copySVGToClipboard(svg: Promise<string>): Promise<void> {
+  // Promise-backed data preserves the click's user activation in Safari while
+  // the export worker renders. Plain text preserves the SVG source verbatim.
+  const content = svg.then(text => new Blob([text], { type: 'text/plain' }));
+  // Clipboard permission may fail before the renderer settles.
+  void content.catch(() => {});
+  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    await navigator.clipboard.write([new ClipboardItem({ 'text/plain': content })]);
+  } else {
+    await navigator.clipboard.writeText(await svg);
+  }
 }
