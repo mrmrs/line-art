@@ -1,4 +1,4 @@
-# ln.studio
+# 3D SVG
 
 A browser-based SVG studio for pen plotting: 3D primitives, procedural grids, mathematical surfaces, SVG/text outlines, mesh imports, hatching, stippling, and multi-pen output.
 
@@ -14,6 +14,14 @@ npm run lint
 ```
 
 The browser suite uses locally installed Google Chrome and an isolated dev server on port 5188. Set `PLAYWRIGHT_PORT=5198` when that port is already occupied. `npm test` runs deterministic geometry, persistence, expression, scheduler, and physical-output regressions. Browser screenshots and test reports are ignored by Git.
+
+## Identity and sharing
+
+The striped skullcat in the header and solid favicon share the original mark. The SVG favicon adapts to the browser’s light/dark preference; ICO and Apple touch icons provide fixed-background fallbacks. The 1200 × 630 social card uses real line-grid geometry on black with a small **3D SVG** signature. Its lettering is outlined, so the card has no external font dependency.
+
+Generated assets are committed in `public/`; deployment needs no graphics tools. To regenerate them, run `npm run generate:brand` with Node 24+, ImageMagick (`magick`), installed project dependencies, and Google Chrome.
+
+Set `VITE_SITE_URL` to the final public origin (including `https://`) in the build environment to enable a canonical URL and absolute social-image links. Cloudflare Pages automatically supplies `CF_PAGES_URL` as a fallback for deployment previews. Local development without either variable uses relative image paths. No prospective domain is hardcoded.
 
 ## Scenes and imports
 

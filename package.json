@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test": "node scripts/test.mjs",
     "test:browser": "playwright test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate:brand": "node scripts/generate-favicons.mjs && node scripts/generate-og-image.mjs"
   },
   "dependencies": {
     "@lnjs/core": "file:vendor/lnjs-core-0.8.2.tgz",
