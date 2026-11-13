@@ -77,12 +77,12 @@ export function PaperControls({ composition }: { composition?: CompositionPaper 
       {Object.entries(PAPER_SIZES).filter(([key]) => key !== 'A4L' && key !== 'A3L').map(([key, value]) => <option key={key} value={key}>{/^A[234]$/.test(key) ? key : value.label}</option>)}
       <option value="custom">{!composition && settings.paperSize === 'custom' ? `Custom · ${display(paper.widthMm, settings.paperUnit)} × ${display(paper.heightMm, settings.paperUnit)} ${settings.paperUnit}` : 'Custom'}</option>
     </select>
-    <button className="btn btn-sm paper-orientation" aria-label="Landscape orientation" aria-pressed={orientation === 'landscape'} title={`Switch to ${orientation === 'landscape' ? 'portrait' : 'landscape'}`} onClick={() => {
+    <button className="btn btn-sm btn-square paper-orientation" aria-label="Landscape orientation" aria-pressed={orientation === 'landscape'} title={`Switch to ${orientation === 'landscape' ? 'portrait' : 'landscape'}`} onClick={() => {
       setOpen(false);
       if (composition) composition.onChange(paper.heightMm, paper.widthMm);
       else settings.setPaperOrientation(orientation === 'landscape' ? 'portrait' : 'landscape');
     }}><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" aria-hidden="true"><rect x={orientation === 'landscape' ? 2 : 4} y={orientation === 'landscape' ? 4 : 2} width={orientation === 'landscape' ? 14 : 10} height={orientation === 'landscape' ? 10 : 14} rx="1" /></svg></button>
-    <button ref={customButton} className="btn btn-sm paper-custom-toggle" aria-label="Custom paper size" title="Custom paper size" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m3 13 1-4 8-8 3 3-8 8-4 1ZM10 3l3 3" /></svg></button>
+    <button ref={customButton} className="btn btn-sm btn-square paper-custom-toggle" aria-label="Custom paper size" title="Custom paper size" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m3 13 1-4 8-8 3 3-8 8-4 1ZM10 3l3 3" /></svg></button>
     {open && <div className="paper-settings-popover" id={id} role="dialog" aria-label="Custom paper size"><CustomPaperForm widthMm={paper.widthMm} heightMm={paper.heightMm} composition={composition} onClose={close} /></div>}
   </div>;
 }

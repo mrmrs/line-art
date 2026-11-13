@@ -35,10 +35,10 @@ export function GridControls() {
       }
     }}>
       <div className="button-group">
-        <button className={`btn btn-sm grid-toggle${visible ? ' active' : ''}`} aria-label="Show grid" aria-pressed={visible} title={visible ? 'Hide grid' : 'Show grid'} onClick={() => setVisible(!visible)}>
+        <button className={`btn btn-sm btn-square grid-toggle${visible ? ' active' : ''}`} aria-label="Show grid" aria-pressed={visible} title={visible ? 'Hide grid' : 'Show grid'} onClick={() => setVisible(!visible)}>
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="1" /><path d="M6 2v12M10 2v12M2 6h12M2 10h12" /></svg>
         </button>
-        <button className="btn btn-sm grid-settings-toggle" ref={settingsButton} aria-label="Grid settings" title="Grid settings" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}>
+        <button className="btn btn-sm btn-square grid-settings-toggle" ref={settingsButton} aria-label="Grid settings" title="Grid settings" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}>
           <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true"><path d="m3 4 3 3 3-3" /></svg>
         </button>
       </div>

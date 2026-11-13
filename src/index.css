@@ -31,6 +31,8 @@
   --sidebar-width: 240px;
   --properties-width: 260px;
   --toolbar-height: 44px;
+  --control-height: 28px;
+  --control-icon-size: 16px;
 }
 
 :root[data-theme="light"] {
@@ -179,14 +181,6 @@ body {
   flex-shrink: 0;
 }
 
-.grid-controls .grid-toggle {
-  padding: 4px 7px;
-}
-
-.grid-controls .grid-settings-toggle {
-  padding: 4px;
-}
-
 .grid-settings-popover {
   position: absolute;
   top: calc(100% + 8px);
@@ -221,11 +215,7 @@ body {
 
 .paper-preset-select {
   max-width: 152px;
-}
-
-.paper-controls .paper-orientation,
-.paper-controls .paper-custom-toggle {
-  padding: 3px 5px;
+  height: var(--control-height);
 }
 
 .paper-settings-popover {
@@ -267,12 +257,28 @@ body {
    Buttons
    ============================================================================= */
 
+/* All action controls share a fixed box; icon/text metrics never set height. */
+.btn,
+.btn-icon {
+  height: var(--control-height);
+  min-height: var(--control-height);
+  line-height: 1;
+}
+
+.btn > svg,
+.btn-icon > svg {
+  display: block;
+  width: var(--control-icon-size);
+  height: var(--control-icon-size);
+  flex-shrink: 0;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 0 8px;
   font-size: 11px;
   font-family: var(--font-sans);
   font-weight: 500;
@@ -281,7 +287,7 @@ body {
   background: var(--color-surface-2);
   color: var(--color-text);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   white-space: nowrap;
 }
 
@@ -306,13 +312,8 @@ body {
   background: var(--color-accent-hover);
 }
 
-.btn-sm {
-  padding: 3px 8px;
-  font-size: 11px;
-}
-
 .btn-xs {
-  padding: 2px 6px;
+  padding: 0 6px;
   font-size: 10px;
 }
 
@@ -331,8 +332,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--control-height);
   padding: 0;
   font-size: 12px;
   border: none;
@@ -340,7 +340,14 @@ body {
   background: transparent;
   color: var(--color-text-dim);
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.btn.btn-square {
+  width: var(--control-height);
+  min-width: var(--control-height);
+  padding: 0;
   flex-shrink: 0;
 }
 
@@ -661,8 +668,6 @@ input[type="number"] {
 }
 
 .preset-view-toggle .btn-icon {
-  width: 26px;
-  height: 26px;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
 }
@@ -739,18 +744,15 @@ input[type="number"] {
 
 .preset-replace-btn {
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
 }
 
 .preset-list-grid .preset-replace-btn {
   position: absolute;
-  right: -2px;
-  top: -2px;
-  width: 20px;
-  height: 20px;
+  /* Keep the larger hit target clear of the preset's central add action. */
+  right: -6px;
+  top: -6px;
   background: var(--color-surface);
 }
 

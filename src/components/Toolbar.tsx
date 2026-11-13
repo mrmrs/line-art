@@ -77,7 +77,7 @@ export function Toolbar() {
         <ThemeToggle />
         <GridControls />
         <button
-          className="btn btn-sm"
+          className="btn btn-sm btn-square"
           onClick={() => useSceneStore.temporal.getState().undo()}
           title="Undo (Cmd+Z)"
           aria-label="Undo"
@@ -85,7 +85,7 @@ export function Toolbar() {
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 10h10a6 6 0 0 1 0 12M4 10l5-5M4 10l5 5" transform="translate(0 -2)" /></svg>
         </button>
         <button
-          className="btn btn-sm"
+          className="btn btn-sm btn-square"
           onClick={() => useSceneStore.temporal.getState().redo()}
           title="Redo (Cmd+Shift+Z)"
           aria-label="Redo"
