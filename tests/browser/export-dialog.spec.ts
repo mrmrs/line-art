@@ -4,7 +4,8 @@ test('one download action renders SVG with physical stroke width and no timing c
   await page.addInitScript(() => localStorage.setItem('ln-plot-settings', JSON.stringify({ drawSpeed: 0, travelSpeed: 0, liftSeconds: null, minimumGapMm: 100 })));
   await page.goto('/');
   await page.evaluate(async () => {
-    const { useSceneStore } = await import('/src/lib/store.ts');
+    const { useSceneStore, storageReady } = await import('/src/lib/store.ts');
+    await storageReady;
     useSceneStore.getState().addNode('cube', 'Export fixture', { min: [-1, -1, -1], max: [1, 1, 1] });
   });
   await page.getByRole('button', { name: 'Export SVG', exact: true }).click();

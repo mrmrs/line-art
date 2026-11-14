@@ -3,6 +3,7 @@ import type { CameraConfig } from '../../lib/types';
 import { CAMERA_PRESETS } from '../../lib/cameras';
 import { NumberInput, Vec3Input } from './inputs';
 import { useDraftValue } from '../../hooks/useDraftValue';
+import { useSceneStore } from '../../lib/store';
 
 interface Props {
   camera: CameraConfig;
@@ -21,6 +22,9 @@ function presetMatchesCamera(p: CameraConfig, c: CameraConfig): boolean {
 }
 
 export const CameraControls = memo(function CameraControls({ camera, onChange }: Props) {
+  const near = useSceneStore(s => s.renderSettings.near);
+  const far = useSceneStore(s => s.renderSettings.far);
+  const updateRenderSettings = useSceneStore(s => s.updateRenderSettings);
   const activePresetName = useMemo(() => {
     const m = CAMERA_PRESETS.find((p) => presetMatchesCamera(p, camera));
     return m?.name ?? '';
@@ -86,8 +90,16 @@ export const CameraControls = memo(function CameraControls({ camera, onChange }:
         <Vec3Input label="Eye" value={camera.eye} onChange={(v) => onChange({ eye: v })} step={0.5} />
         <Vec3Input label="Target" value={camera.center} onChange={(v) => onChange({ center: v })} step={0.5} />
         {camera.ortho && (
-          <NumberInput label="Ortho Size" value={camera.orthoSize} onChange={(v) => onChange({ orthoSize: v })} step={0.5} min={0.5} max={20} />
+          <NumberInput label="Ortho Size" value={camera.orthoSize} onChange={(v) => onChange({ orthoSize: v })} step={0.5} min={0.01} max={10000} clampToBounds />
         )}
+        <details className="camera-clipping">
+          <summary>Clipping range</summary>
+          <div className="property-grid">
+            <NumberInput label="Near" value={near} onChange={v => updateRenderSettings({ near: v })} min={0.0001} max={Math.max(0.0001, Math.min(10000, far - 0.0001))} step={0.1} clampToBounds />
+            <NumberInput label="Far" value={far} onChange={v => updateRenderSettings({ far: v })} min={near + 0.0001} max={100000} step={100} clampToBounds />
+          </div>
+          <p className="property-hint">Increase Far when a large scene is cut off in the distance. Applies to all views and SVG exports.</p>
+        </details>
       </div>
     </div>
   );

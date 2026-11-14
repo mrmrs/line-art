@@ -47,7 +47,7 @@ const queue = new LatestRender<ViewRequest & { nodes: SceneNode[] }>(
     const draft = renderScene(nodes, camera, width, height, {
       ...settings,
       curveTolerance,
-    });
+    }, { onProgress: message => self.postMessage({ type: 'progress', id, message }) });
     if (!current()) return;
     self.postMessage({
       type: 'result',
@@ -58,7 +58,8 @@ const queue = new LatestRender<ViewRequest & { nodes: SceneNode[] }>(
     if (curveTolerance === (settings.curveTolerance ?? 0.25)) return;
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (!current()) return;
-    const final = renderScene(nodes, camera, width, height, settings);
+    const final = renderScene(nodes, camera, width, height, settings,
+      { onProgress: message => self.postMessage({ type: 'progress', id, message }) });
     if (current())
       self.postMessage({ type: 'result', id, isFinal: true, ...final });
   },

@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useId } from 'react';
 import type { Vec3 } from '../../lib/types';
 import { useDraftValue } from '../../hooks/useDraftValue';
 
@@ -15,23 +15,29 @@ interface NumberInputProps {
   step?: number;
   min?: number;
   max?: number;
+  clampToBounds?: boolean;
 }
 
 export const NumberInput = memo(function NumberInput({
-  label, value, onChange, step = 0.1, min, max,
+  label, value, onChange, step = 0.1, min, max, clampToBounds = false,
 }: NumberInputProps) {
+  const id = useId();
   const [draft, setDraft] = useDraftValue(value, onChange);
   return (
     <div className="property-row">
-      <label className="property-label">{label}</label>
+      <label className="property-label" htmlFor={id}>{label}</label>
       <input
+        id={id}
         type="number"
         className="input input-sm"
         value={draft}
         step={step}
         min={min}
         max={max}
-        onChange={(e) => setDraft(parseFloat(e.target.value) || 0)}
+        onChange={(e) => {
+          const next = parseFloat(e.target.value) || 0;
+          setDraft(clampToBounds ? Math.max(min ?? -Infinity, Math.min(max ?? Infinity, next)) : next);
+        }}
       />
     </div>
   );

@@ -17,7 +17,7 @@ The browser suite uses locally installed Google Chrome and an isolated dev serve
 
 ## Identity and sharing
 
-The striped skullcat in the header and solid favicon share the original mark. The SVG favicon adapts to the browser’s light/dark preference; ICO and Apple touch icons provide fixed-background fallbacks. The 1200 × 630 social card uses real line-grid geometry on black with a small **3D SVG** signature. Its lettering is outlined, so the card has no external font dependency.
+The striped skullcat in the header and solid favicon share the original mark. The SVG favicon adapts to the browser’s light/dark preference; ICO and Apple touch icons provide fixed-background fallbacks. The 1200 × 630 social card centers the original skullcat at a golden-ratio share of the card height, filled with an angled white line grid on black. It contains no visible text and has no external font dependency.
 
 Generated assets are committed in `public/`; deployment needs no graphics tools. To regenerate them, run `npm run generate:brand` with Node 24+, ImageMagick (`magick`), installed project dependencies, and Google Chrome.
 
@@ -27,7 +27,9 @@ Set `VITE_SITE_URL` to the final public origin (including `https://`) in the bui
 
 The app shares its interface language with Image to SVG: a 48px header, 30px desktop controls (40px header controls on coarse pointers), monochrome primary actions, and neutral light/dark surfaces. DM Sans and IBM Plex Mono are served locally with licenses in `public/fonts/ui/`. The hatched skullcat retains its 32px footprint.
 
-The initial theme is applied in the HTML head before application modules load. Existing `skullcat-theme` choices remain authoritative; otherwise the interface follows live system changes. Only a deliberate toggle saves a preference. Theme changes do not modify artwork colors, geometry, cameras, document settings, or undo history.
+The initial theme is applied in the HTML head before application modules load. Existing `skullcat-theme` choices remain authoritative; otherwise the interface follows live system light/dark preferences, falling back to dark when no preference is recognized. Only a deliberate toggle saves a preference. Theme changes do not modify artwork colors, geometry, cameras, document settings, or undo history.
+
+With no saved scene, the app opens a randomly varied line grid, cube lattice, or Suzanne model. New dark-theme artwork uses white lines on dark paper; light-theme artwork uses dark lines on white paper. A failed model download falls back to a line grid. Saved scenes—including deliberately empty scenes—are restored unchanged. Startup artwork and restoration establish the initial history baseline, so Undo stays disabled until the first edit.
 
 At 1040px and below, the two desktop sidebars would consume 500px and leave insufficient drawing space, so the canvas takes the full width. **Scene** and **Properties** open dismissible modal panels. **More actions** retains Open, Save, appearance, view layout, grid settings, Undo, and Redo; **Export SVG** stays visibly labeled. Panels and menus support keyboard dismissal and focus restoration, and scroll within short landscape viewports. Project files remain `.lnscene`/`.json`; model imports stay in the Scene panel.
 

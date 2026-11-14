@@ -9,9 +9,9 @@ import type {
 import { compileExpression } from './expression';
 export const LIMITS = {
   nodes: 500,
-  cells: 50000,
+  cells: 524288,
   triangles: 100000,
-  paths: 250000,
+  paths: 500000,
   vertices: 2000000,
   samples: 2000000,
   inputBytes: 20000000,

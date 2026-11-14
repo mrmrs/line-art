@@ -47,7 +47,7 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
 
   const commitCamera = useCallback((camera: CameraConfig) => updateCamera(cameraIndex, camera), [cameraIndex, updateCamera]);
   const { camera, isDragging, isInteracting, handlers, handleWheel } = useOrbitCamera(storedCamera, commitCamera, paperSizePx);
-  const { svg, rendering, renderTimeMs, pathCount, error, cancel, retry, renderedCamera, preview } =
+  const { svg, rendering, progress, renderTimeMs, pathCount, error, cancel, retry, renderedCamera, preview } =
     useWorkerRender(nodes, camera, paper.w, paper.h, renderSettings, isInteracting);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export function Viewport({ cameraIndex, showLabel = true }: ViewportProps) {
       )}
       <div className="viewport-stats">
         {preview && <span className="viewport-preview">Wireframe preview</span>}
-        {rendering && <><span className="viewport-rendering">rendering</span>
+        {rendering && <><span className="viewport-rendering" role="status">{progress}</span>
           <button className="btn btn-xs" onClick={cancel}>Cancel</button></>}
         {error && <span role="alert">{error}{' '}<button className="btn btn-xs" onClick={retry}>Retry</button></span>}
         {!rendering && <span>{pathCount} paths &middot; {renderTimeMs.toFixed(0)}ms</span>}

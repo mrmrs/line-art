@@ -34,7 +34,7 @@ export function GridControls({ inline = false }: { inline?: boolean }) {
         event.preventDefault(); setOpen(false); settingsButton.current?.focus();
       }
     }}>
-      <div className="button-group" role="group" aria-label="Grid">
+      <div className={`button-group grid-button-group${visible ? ' active' : ''}`} role="group" aria-label="Grid">
         <button className={`btn btn-sm btn-square grid-toggle${visible ? ' active' : ''}`} aria-label="Show grid" aria-pressed={visible} title={visible ? 'Hide grid' : 'Show grid'} onClick={() => setVisible(!visible)}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1" /><path d="M9 3v18M15 3v18M3 9h18M3 15h18" /></svg>
         </button>

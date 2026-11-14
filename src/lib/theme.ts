@@ -11,8 +11,10 @@ function savedTheme(): Theme | null {
 }
 
 function systemTheme(): Theme {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark' : 'light';
+  // A matching light preference is explicit; unsupported/no-preference browsers
+  // use our dark fallback rather than silently assuming light.
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 // A deliberate choice remains authoritative in this tab even if storage fails.
@@ -42,9 +44,10 @@ let unsubscribe: (() => void) | undefined;
 /** Start before React mounts. The head bootstrap covers the earlier module-loading interval. */
 export function initializeTheme(): () => void {
   unsubscribe?.();
-  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  const media = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-color-scheme: light)') : undefined;
   const sync = () => {
-    const theme = preference ?? (media.matches ? 'dark' : 'light');
+    const theme = preference ?? systemTheme();
     applyTheme(theme);
     if (useTheme.getState().theme !== theme) useTheme.setState({ theme });
   };
@@ -57,11 +60,11 @@ export function initializeTheme(): () => void {
     preference = savedTheme();
     sync();
   };
-  media.addEventListener('change', followSystem);
+  media?.addEventListener('change', followSystem);
   window.addEventListener('storage', syncStorage);
   sync();
   const cleanup = () => {
-    media.removeEventListener('change', followSystem);
+    media?.removeEventListener('change', followSystem);
     window.removeEventListener('storage', syncStorage);
     if (unsubscribe === cleanup) unsubscribe = undefined;
   };

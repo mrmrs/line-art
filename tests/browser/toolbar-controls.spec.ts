@@ -32,3 +32,39 @@ test('grid controls support keyboard settings and compact file actions', async (
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
 });
+
+test('large scenes can extend the camera clipping range and undo the change', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { useSceneStore, storageReady } = await import('/src/lib/store.ts');
+    await storageReady;
+    const store = useSceneStore.getState();
+    store.addNode('cube', 'Distant cube', { min: [-20, -20, -20], max: [20, 20, 20] });
+    store.updateCamera(0, { eye: [200, -200, 200], center: [0, 0, 0], ortho: true, orthoSize: 60 });
+  });
+  await expect(page.locator('.viewport-svg svg')).toBeVisible();
+  await expect(page.locator('.viewport-rendering')).toHaveCount(0);
+  await expect(page.locator('.viewport-svg polyline')).toHaveCount(0);
+  await page.getByText('Clipping range', { exact: true }).click();
+  const far = page.getByRole('spinbutton', { name: 'Far', exact: true });
+  await far.fill('1000');
+  await far.blur();
+  await expect.poll(() => page.locator('.viewport-svg polyline').count()).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(far).toHaveValue('100');
+  await expect(page.locator('.viewport-svg polyline')).toHaveCount(0);
+  // Repeated out-of-range edits must not leave a stale draft above the limit.
+  await far.fill('1000000');
+  await expect(far).toHaveValue('100000');
+  await far.fill('2000000');
+  await expect(far).toHaveValue('100000');
+  await far.blur();
+  await page.evaluate(async () => {
+    const { useSceneStore } = await import('/src/lib/store.ts');
+    useSceneStore.getState().updateRenderSettings({ near: 0.0001, far: 0.0002 });
+  });
+  await expect(far).toHaveValue('0.0002');
+  const near = page.getByRole('spinbutton', { name: 'Near', exact: true });
+  await near.fill('0.0002');
+  await expect(near).toHaveValue('0.0001');
+});

@@ -3,7 +3,8 @@ import { test, expect } from './fixtures';
 test('shape randomize is undoable and cube grids expose face fills', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(async () => {
-    const { useSceneStore } = await import('/src/lib/store.ts');
+    const { useSceneStore, storageReady } = await import('/src/lib/store.ts');
+    await storageReady;
     const t = await import('/src/lib/types.ts');
     useSceneStore.getState().loadNodes([{name:'Filled grid',type:'cube-grid',params:{...t.DEFAULT_CUBE_GRID_PARAMS,countX:2,countY:2,countZ:2},visible:true,transform:t.DEFAULT_TRANSFORM,slicing:t.DEFAULT_SLICING}]);
   });
@@ -22,7 +23,8 @@ test('shape randomize is undoable and cube grids expose face fills', async ({ pa
 test('composition randomize regenerates fresh settings and preserves kept forms', async ({ page }) => {
   await page.goto('/');
   const kept = await page.evaluate(async () => {
-    const { useSceneStore } = await import('/src/lib/store.ts');
+    const { useSceneStore, storageReady } = await import('/src/lib/store.ts');
+    await storageReady;
     const t = await import('/src/lib/types.ts');
     const { DEFAULT_COMPOSITION } = await import('/src/lib/composition-types.ts');
     const { packComposition } = await import('/src/lib/composition.ts');

@@ -24,6 +24,8 @@ import { remapNodes, normalizeScene } from './scene-file';
 import type { ImportNode, SavedScene } from './scene-file';
 import { saveScene, loadScene } from './persistence';
 import { validateNodes } from './limits';
+import { createStarterScene } from './starter-scene';
+import { useTheme } from './theme';
 
 // =============================================================================
 // Zustand Store: Reactive scene state with localStorage persistence
@@ -414,6 +416,9 @@ export const useSceneStore = create<SceneStore>()(
           void renderVersion;
           return rest;
         },
+        equality: (a, b) => a.nodes === b.nodes && a.cameras === b.cameras
+          && a.renderSettings === b.renderSettings && a.viewMode === b.viewMode
+          && a.activeCameraIndex === b.activeCameraIndex,
         limit: 50,
       },
     ),
@@ -449,10 +454,13 @@ useSceneStore.subscribe(
   { equalityFn: (a, b) => a.every((value, i) => value === b[i]) },
 );
 export const storageReady = (async () => {
+  let scene: SavedScene | null = null;
+  let starter = false;
   try {
-    let scene = await loadScene();
+    scene = await loadScene();
     if (!scene) {
-      const old = localStorage.getItem(STORAGE_KEY);
+      let old: string | null = null;
+      try { old = localStorage.getItem(STORAGE_KEY); } catch { /* IndexedDB may still work. */ }
       if (old) {
         const legacy = JSON.parse(old) as SavedScene;
         if (
@@ -470,17 +478,27 @@ export const storageReady = (async () => {
         await saveScene(scene);
       }
     }
+  } catch (error) {
+    reportError(error);
+  }
+  try {
+    if (!scene) {
+      starter = true;
+      scene = await createStarterScene(useTheme.getState().theme);
+    }
     if (scene) {
-      useSceneStore.setState(scene);
+      useSceneStore.setState({ ...scene, selectedId: starter ? scene.nodes[0]?.id ?? null : null,
+        selectedIds: starter && scene.nodes[0] ? [scene.nodes[0].id] : [] });
       for (const n of scene.nodes) {
         const match = /^node_(\d+)/.exec(n.id);
         if (match) _idCounter = Math.max(_idCounter, Number(match[1]));
       }
-      useSceneStore.temporal.getState().clear();
     }
   } catch (error) {
     reportError(error);
   } finally {
+    // Hydration and generated starting artwork establish a baseline, never an edit.
+    useSceneStore.temporal.getState().clear();
     useStorageStatus.setState({ ready: true });
   }
 })();

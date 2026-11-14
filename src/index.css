@@ -340,7 +340,7 @@ body {
   white-space: nowrap;
 }
 
-.btn:hover {
+.btn:hover:enabled {
   background: var(--color-surface-3);
   border-color: var(--color-text-muted);
 }
@@ -357,7 +357,7 @@ body {
   color: var(--action-text);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:enabled {
   background: var(--action-hover);
   border-color: var(--action-hover);
 }
@@ -422,6 +422,48 @@ body {
 .button-group .btn:last-child {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* One outlined control, with separate keyboard targets for visibility/settings. */
+.grid-button-group {
+  gap: 0;
+  box-shadow: inset 0 0 0 1px var(--color-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.grid-button-group.active {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+.grid-button-group .btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.grid-button-group .grid-settings-toggle {
+  width: 24px;
+  min-width: 24px;
+}
+
+.property-hint {
+  margin: 4px 0;
+  color: var(--color-text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.camera-clipping { margin-top: 4px; font-size: 11px; color: var(--color-text-dim); }
+.camera-clipping summary { cursor: pointer; }
+.camera-clipping > .property-grid { margin-top: 8px; }
 
 /* =============================================================================
    Inputs

@@ -73,7 +73,7 @@ export function projectPaths(
   budget.samples += visibility
     ? visibility.stats.tests + visibility.stats.fallbackRays
     : output.length;
-  if (budget.samples > LIMITS.samples * 10)
+  if (budget.samples > (options.maxTests ?? LIMITS.samples * 10))
     throw new Error('Occlusion work budget exceeded');
   if (output.length > LIMITS.paths)
     throw new Error('Projected path budget exceeded');

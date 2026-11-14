@@ -12,7 +12,8 @@ for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await page.goto('/');
     await page.evaluate(async () => {
-      const { useSceneStore } = await import('/src/lib/store.ts');
+      const { useSceneStore, storageReady } = await import('/src/lib/store.ts');
+      await storageReady;
       useSceneStore.getState().addNode('cube', 'Responsive fixture', { min: [-1, -1, -1], max: [1, 1, 1] });
     });
     await expect.poll(() => page.locator('.viewport-svg polyline').count()).toBeGreaterThan(0);

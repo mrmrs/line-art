@@ -39,11 +39,13 @@ export const CubeGridEditor = memo(function CubeGridEditor({ params: gp, onChang
         onChange={(v) => onChange({ dimensions: v })}
       />
 
-      <NumberInput label="Count X" value={gp.countX} onChange={(v) => onChange({ countX: Math.max(1, Math.round(v)) })} step={1} min={1} max={30} />
-      <NumberInput label="Count Y" value={gp.countY} onChange={(v) => onChange({ countY: Math.max(1, Math.round(v)) })} step={1} min={1} max={30} />
+      <NumberInput label="Count X" value={gp.countX} onChange={(v) => onChange({ countX: Math.max(1, Math.round(v)) })} step={1} min={1} max={256} />
+      <NumberInput label="Count Y" value={gp.countY} onChange={(v) => onChange({ countY: Math.max(1, Math.round(v)) })} step={1} min={1} max={256} />
       {dim === '3d' && (
-        <NumberInput label="Count Z" value={gp.countZ} onChange={(v) => onChange({ countZ: Math.max(1, Math.round(v)) })} step={1} min={1} max={30} />
+        <NumberInput label="Count Z" value={gp.countZ} onChange={(v) => onChange({ countZ: Math.max(1, Math.round(v)) })} step={1} min={1} max={256} />
       )}
+      {gp.countX * gp.countY * (dim === '3d' ? gp.countZ : 1) > 30000 &&
+        <p className="property-hint" role="status">{(gp.countX * gp.countY * (dim === '3d' ? gp.countZ : 1)).toLocaleString()} cells: rendering may take minutes and substantial memory. You can cancel in the canvas. Dense fills have separate limits.</p>}
       <NumberInput label="Spacing" value={gp.spacing} onChange={(v) => onChange({ spacing: v })} step={0.05} min={0.1} />
 
       {/* Size */}

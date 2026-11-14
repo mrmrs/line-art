@@ -2,6 +2,7 @@ import { SKULLCAT_PATH } from '../lib/brand';
 import type { CompositionParams } from '../lib/composition-types';
 import { compositionCamera, compositionResolution } from '../lib/composition';
 import { useRef, useState } from 'react';
+import { useStore } from 'zustand';
 import { useSceneStore, snapshotScene, reportError } from '../lib/store';
 import { serializeScene, parseScene } from '../lib/scene-file';
 import { ExportPanel } from './ExportPanel';
@@ -27,6 +28,8 @@ const VIEW_MODES: { value: ViewMode; label: string; icon: string }[] = [
 export function Toolbar({ compact = false, onOpenScene, onOpenProperties }: { compact?: boolean; onOpenScene?: () => void; onOpenProperties?: () => void }) {
   const viewMode = useSceneStore((s) => s.viewMode);
   const setViewMode = useSceneStore((s) => s.setViewMode);
+  const canUndo = useStore(useSceneStore.temporal, s => s.pastStates.length > 0);
+  const canRedo = useStore(useSceneStore.temporal, s => s.futureStates.length > 0);
 
   const viewSettings = useViewSettings();
   const optimize = useViewSettings(s => s.optimizePaths);
@@ -51,10 +54,10 @@ export function Toolbar({ compact = false, onOpenScene, onOpenProperties }: { co
   </div>;
   const history = <div className="toolbar-group toolbar-history" role="group" aria-label="History">
     {compact && <span className="toolbar-label">History</span>}
-    <button className="btn btn-sm btn-square" onClick={() => useSceneStore.temporal.getState().undo()} title="Undo (Cmd+Z)" aria-label="Undo">
+    <button className="btn btn-sm btn-square" disabled={!canUndo} onClick={() => useSceneStore.temporal.getState().undo()} title="Undo (Cmd+Z)" aria-label="Undo">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10h11a6 6 0 0 1 0 12M3 10l5-5M3 10l5 5" transform="translate(0 -2)" /></svg>
     </button>
-    <button className="btn btn-sm btn-square" onClick={() => useSceneStore.temporal.getState().redo()} title="Redo (Cmd+Shift+Z)" aria-label="Redo">
+    <button className="btn btn-sm btn-square" disabled={!canRedo} onClick={() => useSceneStore.temporal.getState().redo()} title="Redo (Cmd+Shift+Z)" aria-label="Redo">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10H10a6 6 0 0 0 0 12M21 10l-5-5M21 10l-5 5" transform="translate(0 -2)" /></svg>
     </button>
   </div>;

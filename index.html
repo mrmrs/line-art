@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="theme-color" content="#fafafa" />
+    <meta name="theme-color" content="#141414" />
     <script>
       // Keep this preference resolution aligned with src/lib/theme.ts.
       // Run before styles/modules load so the first paint uses the right theme.
@@ -12,7 +12,7 @@
           const saved = localStorage.getItem('skullcat-theme');
           if (saved === 'light' || saved === 'dark') theme = saved;
         } catch { /* System preference still works without storage. */ }
-        theme ??= matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        theme ??= typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
         const root = document.documentElement;
         root.dataset.theme = theme;
         root.style.colorScheme = theme;
@@ -36,12 +36,12 @@
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="An angled grid of white lines on black, with the skullcat mark and 3D SVG signature." />
+    <meta property="og:image:alt" content="A large skullcat silhouette filled with a fine angled white line grid on black." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="3D SVG" />
     <meta name="twitter:description" content="Create 3D line art in your browser. Compose shapes, explore generative grids, and export SVG for pen plotting." />
     <meta name="twitter:image" content="/og-image.png" />
-    <meta name="twitter:image:alt" content="An angled grid of white lines on black, with the skullcat mark and 3D SVG signature." />
+    <meta name="twitter:image:alt" content="A large skullcat silhouette filled with a fine angled white line grid on black." />
   </head>
   <body>
     <div id="root"></div>

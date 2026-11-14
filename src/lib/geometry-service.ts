@@ -6,6 +6,7 @@ import type { PhysicalSize, PenGroup } from './svg-output';
 import { compileExpression } from './expression';
 import { validateNodes, validateView, assertPaths, bounded, LIMITS } from './limits';
 import { projectPaths } from './projection';
+import { projectTiledScene } from './tiled-projection';
 import { HeightField } from './height-field';
 import type {
   SceneNode,
@@ -845,6 +846,7 @@ interface RenderOptions {
   // Wrap main mesh shapes as occluder-only (their silhouettes are not drawn).
   // Used for pen passes 2+ where the main shapes' lines belong to pen 1.
   suppressMainPaths?: boolean;
+  onProgress?: (message: string) => void;
 }
 
 // Wrap a shape so it occludes but contributes no paths of its own.
@@ -906,6 +908,7 @@ interface PreparedScene {
   occludedPaths: ln.Paths;
   fills: { paths: ln.Paths; scene: ln.Scene }[];
   navigationPaths?: ln.Paths;
+  tiled?: boolean;
 }
 let preparedNodes: SceneNode[] | null = null;
 const preparedScenes = new Map<string, PreparedScene>();
@@ -1109,11 +1112,12 @@ function prepareScene(
     }
   }
 
-  const paths = scene.paths();
+  const tiled = scene.shapes.length > 30000;
+  const paths = tiled ? [] : scene.paths();
   assertPaths(paths);
   assertPaths(extraPaths);
   assertPaths(occludedPaths);
-  scene.compile();
+  if (!tiled) scene.compile();
   // Reuse one visibility scene per host policy, then batch all matching marks.
   const policies = new Map<ln.ShapeT[], Map<boolean, ln.Scene>>();
   const grouped = new Map<ln.Scene, ln.Paths>();
@@ -1128,10 +1132,11 @@ function prepareScene(
     let others = variants.get(surface);
     if (!others) {
       others = new ln.Scene();
+      const excluded = new Set(batch.exclude);
       for (const shape of scene.shapes)
-        if (!batch.exclude.includes(shape)) others.add(shape);
+        if (!excluded.has(shape)) others.add(shape);
       if (batch.surface) others.add(batch.surface);
-      others.compile();
+      if (!tiled) others.compile();
       variants.set(surface, others);
     }
     let paths = grouped.get(others);
@@ -1142,7 +1147,7 @@ function prepareScene(
     for (const path of batch.paths) paths.push(path);
   }
   const fills = Array.from(grouped, ([scene, paths]) => ({ scene, paths }));
-  const prepared = { scene, paths, extraPaths, occludedPaths, fills };
+  const prepared = { scene, paths, extraPaths, occludedPaths, fills, tiled };
   preparedScenes.set(key, prepared);
   return prepared;
 }
@@ -1198,7 +1203,11 @@ function projectionForView(camera: CameraConfig, width: number, height: number, 
 const NAVIGATION_SEGMENT_LIMIT = 6000;
 function navigationPaths(prepared: PreparedScene): ln.Paths {
   if (prepared.navigationPaths) return prepared.navigationPaths;
-  const groups = [prepared.paths, prepared.extraPaths, prepared.occludedPaths,
+  // Sample shapes before creating paths: a half-million-cell scene must not
+  // allocate its entire edge stream just to display a 6,000-segment preview.
+  const main = prepared.tiled ? prepared.scene.shapes.filter((_, i, all) =>
+    i % Math.max(1, Math.ceil(all.length / 500)) === 0).flatMap(shape => shape.paths()) : prepared.paths;
+  const groups = [main, prepared.extraPaths, prepared.occludedPaths,
     ...prepared.fills.map(batch => batch.paths)];
   let segmentCount = 0;
   for (const paths of groups) for (const path of paths) segmentCount += Math.max(0, path.length - 1);
@@ -1248,6 +1257,19 @@ export function computeProjectedPaths(
 ): ln.Paths {
   const { matrix, eye } = projectionForView(camera, width, height, settings);
   const prepared = prepareScene(nodes, options);
+  if (prepared.tiled) {
+    const budget = { samples: 0, paths: 0, vertices: 0 };
+    const paths = projectTiledScene(prepared.scene.shapes, prepared.extraPaths,
+      prepared.occludedPaths, matrix, eye, width, height, settings.step,
+      settings.curveTolerance ?? 0.25, 8, true, options.onProgress, budget);
+    for (const batch of prepared.fills) {
+      for (const path of projectTiledScene(batch.scene.shapes, [], batch.paths,
+        matrix, eye, width, height, settings.step, settings.curveTolerance ?? 0.25,
+        8, false, options.onProgress, budget)) paths.push(path);
+    }
+    assertPaths(paths);
+    return paths;
+  }
   const budget = { samples: 0 };
   const paths = projectPaths(
     prepared.paths,
@@ -1338,6 +1360,7 @@ export function renderScenePerPen(
   height: number,
   settings: RenderSettings,
   onPen?: (pen: number) => void,
+  onProgress?: (message: string) => void,
 ): { penGroups: PenGroup[]; totalRenderTimeMs: number } {
   const start = performance.now();
   const pens = new Set<number>([1]);
@@ -1358,6 +1381,7 @@ export function renderScenePerPen(
       settings,
       {
         penFilter: pen,
+        onProgress,
         suppressMainPaths: pen !== lowestPen,
       },
     );

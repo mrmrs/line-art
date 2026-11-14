@@ -1056,3 +1056,73 @@ test('accelerated visibility matches the previous renderer across projection and
     }
   } finally { rmSync(temp,{recursive:true,force:true}); }
 });
+
+test('tiled exact projection preserves line coverage across perspective, transforms and tile boundaries', () => {
+  const { projectTiledScene } = load('tiled-projection.js');
+  const { projectPaths } = load('projection.js');
+  const segments = paths => paths.flatMap(path => path.slice(1).map((b,i) => [path[i],b]));
+  function covered(source, target) {
+    for (const [a,b] of segments(source)) {
+      const dx=b.x-a.x,dy=b.y-a.y,length2=dx*dx+dy*dy;
+      if(length2<1e-14)continue;
+      const spans=[];
+      for(const [c,d] of segments(target)) {
+        if(Math.abs(dx*(c.y-a.y)-dy*(c.x-a.x))>1e-6*Math.sqrt(length2) ||
+           Math.abs(dx*(d.y-a.y)-dy*(d.x-a.x))>1e-6*Math.sqrt(length2))continue;
+        const u=((c.x-a.x)*dx+(c.y-a.y)*dy)/length2,v=((d.x-a.x)*dx+(d.y-a.y)*dy)/length2;
+        const lo=Math.max(0,Math.min(u,v)),hi=Math.min(1,Math.max(u,v));if(hi>lo)spans.push([lo,hi]);
+      }
+      spans.sort((a,b)=>a[0]-b[0]);let end=0;
+      for(const [lo,hi]of spans){if(lo>end+1e-6)break;end=Math.max(end,hi);}
+      assert.ok(end>=1-1e-6,`Uncovered segment ${JSON.stringify([a,b])}: ${end}`);
+    }
+  }
+  for(const perspective of [false,true])for(const near of [false,true]) {
+    const scene=new ln.Scene();
+    for(const cube of generateCubeGrid({...DEFAULT_CUBE_GRID_PARAMS,countX:3,countY:3,countZ:3,sizeMethod:'noise'}))
+      scene.add(new ln.TransformedShape(cube,ln.identity().rotate(new ln.Vector(0,1,0),.31).scale(new ln.Vector(1,.7,1.2))));
+    scene.add(new ln.Cube(new ln.Vector(-.1,-.1,-.1),new ln.Vector(.1,.1,.1)));
+    const eye=near?new ln.Vector(.4,.4,.4):new ln.Vector(6,5,7);
+    const view=ln.lookAt(eye,new ln.Vector(0,0,0),new ln.Vector(0,0,1));
+    const matrix=perspective?view.perspective(55,1,.1,100):view.orthographic(-2,2,-2,2,.1,100);
+    scene.compile();
+    const direct=[[new ln.Vector(-1,0,0),new ln.Vector(1,0,0)]];
+    const regular=projectPaths(scene.paths(),matrix,eye,256,256,.1,scene);
+    regular.push(...projectPaths(direct,matrix,eye,256,256,.1));
+    const tiled=projectTiledScene(scene.shapes,direct,[],matrix,eye,256,256,.1,.25,3);
+    assert.ok(tiled.length>0);covered(regular,tiled);covered(tiled,regular);
+  }
+});
+
+test('requested half-million cube grid validates without allocating geometry', () => {
+  const { validateNodes, LIMITS } = load('limits.js');
+  const node={id:'large-grid',name:'Large grid',type:'cube-grid',visible:true,transform:DEFAULT_TRANSFORM,slicing:DEFAULT_SLICING,
+    params:{...DEFAULT_CUBE_GRID_PARAMS,countX:64,countY:64,countZ:128},fills:[]};
+  assert.doesNotThrow(()=>validateNodes([node]));
+  assert.throws(()=>validateNodes([{...node,params:{...node.params,countX:LIMITS.cells+1}}]),/between|budget/);
+});
+
+test('tiled fill passes keep host occlusion without emitting the occluder outlines', () => {
+  const { projectTiledScene } = load('tiled-projection.js');
+  const { projectPaths } = load('projection.js');
+  const scene=new ln.Scene();
+  scene.add(new ln.Cube(new ln.Vector(-.5,-.5,0),new ln.Vector(.5,.5,1)));
+  scene.compile();
+  const eye=new ln.Vector(0,0,5), matrix=ln.lookAt(eye,new ln.Vector(0,0,0),new ln.Vector(0,1,0)).orthographic(-2,2,-2,2,.1,100);
+  const fill=[[new ln.Vector(-1,0,-1),new ln.Vector(1,0,-1)]];
+  const regular=projectPaths(fill,matrix,eye,256,256,.1,scene);
+  const tiled=projectTiledScene(scene.shapes,[],fill,matrix,eye,256,256,.1,.25,4,false);
+  const length=paths=>paths.reduce((n,p)=>n+p.slice(1).reduce((k,b,i)=>k+Math.hypot(b.x-p[i].x,b.y-p[i].y),0),0);
+  assert.ok(Math.abs(length(regular)-length(tiled))<1e-7);
+  assert.ok(tiled.every(p=>p.every(v=>Math.abs(v.y-128)<1e-8)),'no cube outlines are emitted');
+});
+
+test('tiled output budgets are shared by main geometry and later fill passes', () => {
+  const { projectTiledScene } = load('tiled-projection.js');
+  const { LIMITS } = load('limits.js');
+  const eye=new ln.Vector(0,0,5), matrix=ln.lookAt(eye,new ln.Vector(0,0,0),new ln.Vector(0,1,0)).orthographic(-2,2,-2,2,.1,100);
+  const line=[[new ln.Vector(-1,0,0),new ln.Vector(1,0,0)]];
+  const budget={samples:0,paths:LIMITS.paths-1,vertices:0};
+  assert.equal(projectTiledScene([],line,[],matrix,eye,256,256,.1,.25,1,false,undefined,budget).length,1);
+  assert.throws(()=>projectTiledScene([],line,[],matrix,eye,256,256,.1,.25,1,false,undefined,budget),/output budget/);
+});

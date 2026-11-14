@@ -28,6 +28,7 @@ self.onmessage = (event: MessageEvent<ExportRequest>) => {
           type: 'progress',
           message: `Rendering pen ${pen}…`,
         }),
+      message => self.postMessage({ type: 'progress', message }),
     );
     self.postMessage({
       type: 'progress',

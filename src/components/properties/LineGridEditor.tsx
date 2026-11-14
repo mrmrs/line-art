@@ -15,8 +15,8 @@ export const LineGridEditor = memo(function LineGridEditor({ params: lp, onChang
     <div className="property-grid">
       <div className="property-section-label">Grid</div>
 
-      <NumberInput label="Count X" value={lp.countX} onChange={(v) => onChange({ countX: Math.max(1, Math.round(v)) })} step={1} min={1} max={100} />
-      <NumberInput label="Count Y" value={lp.countY} onChange={(v) => onChange({ countY: Math.max(1, Math.round(v)) })} step={1} min={1} max={100} />
+      <NumberInput label="Count X" value={lp.countX} onChange={(v) => onChange({ countX: Math.max(1, Math.round(v)) })} step={1} min={1} max={500} />
+      <NumberInput label="Count Y" value={lp.countY} onChange={(v) => onChange({ countY: Math.max(1, Math.round(v)) })} step={1} min={1} max={500} />
       <NumberInput label="Spacing" value={lp.spacing} onChange={(v) => onChange({ spacing: v })} step={0.05} min={0.05} />
       <SelectInput
         label="Line Axis"

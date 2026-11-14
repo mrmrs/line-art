@@ -23,6 +23,7 @@ export function useWorkerRender(
   renderedCamera: CameraConfig | null;
   preview: boolean;
   rendering: boolean;
+  progress: string;
   error: string | null;
   cancel: () => void;
   retry: () => void;
@@ -31,6 +32,7 @@ export function useWorkerRender(
     renderedCamera: CameraConfig | null; preview: boolean;
   }>({ svg: '', renderTimeMs: 0, pathCount: 0, renderedCamera: null, preview: false });
   const [rendering, setRendering] = useState(false);
+  const [progress, setProgress] = useState('Rendering…');
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const worker = useRef<Worker | null>(null);
@@ -86,8 +88,8 @@ export function useWorkerRender(
         timeout.current = setTimeout(() => {
           stop();
           setRendering(false);
-          setError('Render exceeded 30 seconds. Reduce scene complexity or retry.');
-        }, 30000);
+          setError('Render exceeded 10 minutes. Reduce scene complexity or retry.');
+        }, 600000);
       };
       instance.onmessage = (event) => {
         const msg = event.data;
@@ -99,7 +101,9 @@ export function useWorkerRender(
           request.width === target.width && request.height === target.height;
         const display = request.id === target.id ||
           (compatible && request.interactive && target.interactive);
+        if (msg.type === 'progress') setProgress(msg.message);
         if (msg.type === 'started') {
+          setProgress('Rendering…');
           setRendering(true);
           setError(null);
         }
@@ -127,5 +131,5 @@ export function useWorkerRender(
     };
     pump.current();
   }, [nodes, camera, width, height, settings, isDragging, attempt, stop]);
-  return { ...result, rendering, error, cancel, retry: () => setAttempt((v) => v + 1) };
+  return { ...result, rendering, progress, error, cancel, retry: () => setAttempt((v) => v + 1) };
 }

@@ -67,7 +67,8 @@ async function instrument(page: Page, responseDelay = 0) {
 async function fixture(page: Page) {
   await page.goto('/');
   await page.evaluate(async () => {
-    const {useSceneStore}=await import('/src/lib/store.ts');
+    const {useSceneStore, storageReady}=await import('/src/lib/store.ts');
+    await storageReady;
     const t=await import('/src/lib/types.ts');
     const s=useSceneStore.getState();
     s.clearScene();
