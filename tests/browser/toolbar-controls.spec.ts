@@ -27,7 +27,7 @@ test('grid controls support keyboard settings and compact file actions', async (
   await expect(panel.getByLabel('Spacing (mm)')).toHaveValue('15');
   await expect(panel.getByRole('combobox', { name: 'Style', exact: true })).toHaveValue('dots');
   await expect(panel.getByLabel('Color', { exact: true })).toHaveValue('#aabbcc');
-  await page.getByRole('img', { name: 'Studio mark' }).click();
+  await page.getByRole('img', { name: '3D SVG' }).click();
   await expect(panel).toHaveCount(0);
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');

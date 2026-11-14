@@ -41,7 +41,7 @@ const MODELS: LibraryEntry[] = MODEL_LIBRARY.map(model => ({
 
 export function PresetLibrary() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
-  const [tooltip, setTooltip] = useState<{ entry: LibraryEntry; left: number; top: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{ entry: LibraryEntry; left: number; top: number; portalTarget: HTMLElement } | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
   const tooltipId = useId();
@@ -68,7 +68,9 @@ export function PresetLibrary() {
   const showTooltip = (entry: LibraryEntry, target: HTMLElement) => {
     keepTooltip();
     const rect = target.getBoundingClientRect();
-    setTooltip({ entry, left: Math.min(rect.right + 8, window.innerWidth - 228), top: Math.min(rect.top, window.innerHeight - 150) });
+    // Keep descriptions inside a modal's top layer; body portals are inert behind it.
+    const portalTarget = target.closest('dialog') ?? document.body;
+    setTooltip({ entry, portalTarget, left: Math.min(rect.right + 8, window.innerWidth - 228), top: Math.min(rect.top, window.innerHeight - 150) });
   };
   const activate = async (entry: LibraryEntry, replace: boolean) => {
     if (request.current) return;
@@ -142,7 +144,7 @@ export function PresetLibrary() {
       <div id={tooltipId} role="tooltip" className="preset-tooltip" style={{ left: tooltip.left, top: tooltip.top }} onMouseEnter={keepTooltip} onMouseLeave={dismissTooltip}>
         <strong>{tooltip.entry.name}</strong><span>{tooltip.entry.description}</span>
         {tooltip.entry.credit && <span>{tooltip.entry.credit}</span>}
-      </div>, document.body,
+      </div>, tooltip.portalTarget,
     )}
   </>;
 }

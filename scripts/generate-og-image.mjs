@@ -47,7 +47,7 @@ try {
     return path;
   }).join(' ');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
-<title id="title">3D SVG — a studio for line art</title>
+<title id="title">3D SVG — line art in 3D</title>
 <desc id="description">A geometric field of white lines seen at an oblique angle on black, with a small skullcat mark and 3D SVG signature.</desc>
 <rect width="1200" height="630" fill="#000"/>
 <g fill="none" stroke="#fff" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">${linework}</g>

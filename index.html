@@ -2,6 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="theme-color" content="#fafafa" />
+    <script>
+      // Keep this preference resolution aligned with src/lib/theme.ts.
+      // Run before styles/modules load so the first paint uses the right theme.
+      (() => {
+        let theme;
+        try {
+          const saved = localStorage.getItem('skullcat-theme');
+          if (saved === 'light' || saved === 'dark') theme = saved;
+        } catch { /* System preference still works without storage. */ }
+        theme ??= matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const root = document.documentElement;
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        root.style.backgroundColor = theme === 'dark' ? '#141414' : '#fafafa';
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#141414' : '#fafafa';
+      })();
+    </script>
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />

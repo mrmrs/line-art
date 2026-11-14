@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 
 test('presets offer compact grid and list views with keyboard descriptions and atomic replacement', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
+  await expect(page.getByRole('img', { name: '3D SVG' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Preset grid view' })).toHaveAttribute('aria-pressed', 'true');
   const cube = page.getByRole('button', { name: 'Add Line Grid to scene', exact: true });
   await cube.focus();

@@ -1,6 +1,6 @@
 # 3D SVG
 
-A browser-based SVG studio for pen plotting: 3D primitives, procedural grids, mathematical surfaces, SVG/text outlines, mesh imports, hatching, stippling, and multi-pen output.
+A browser-based SVG app for pen plotting: 3D primitives, procedural grids, mathematical surfaces, SVG/text outlines, mesh imports, hatching, stippling, and multi-pen output.
 
 ## Development
 
@@ -22,6 +22,14 @@ The striped skullcat in the header and solid favicon share the original mark. Th
 Generated assets are committed in `public/`; deployment needs no graphics tools. To regenerate them, run `npm run generate:brand` with Node 24+, ImageMagick (`magick`), installed project dependencies, and Google Chrome.
 
 Set `VITE_SITE_URL` to the final public origin (including `https://`) in the build environment to enable a canonical URL and absolute social-image links. Cloudflare Pages automatically supplies `CF_PAGES_URL` as a fallback for deployment previews. Local development without either variable uses relative image paths. No prospective domain is hardcoded.
+
+## Interface and responsive layout
+
+The app shares its interface language with Image to SVG: a 48px header, 30px desktop controls (40px header controls on coarse pointers), monochrome primary actions, and neutral light/dark surfaces. DM Sans and IBM Plex Mono are served locally with licenses in `public/fonts/ui/`. The hatched skullcat retains its 32px footprint.
+
+The initial theme is applied in the HTML head before application modules load. Existing `skullcat-theme` choices remain authoritative; otherwise the interface follows live system changes. Only a deliberate toggle saves a preference. Theme changes do not modify artwork colors, geometry, cameras, document settings, or undo history.
+
+At 1040px and below, the two desktop sidebars would consume 500px and leave insufficient drawing space, so the canvas takes the full width. **Scene** and **Properties** open dismissible modal panels. **More actions** retains Open, Save, appearance, view layout, grid settings, Undo, and Redo; **Export SVG** stays visibly labeled. Panels and menus support keyboard dismissal and focus restoration, and scroll within short landscape viewports. Project files remain `.lnscene`/`.json`; model imports stay in the Scene panel.
 
 ## Scenes and imports
 
@@ -62,7 +70,7 @@ The development toolchain overrides `minimatch` to its patched 11.x release whil
 
 ## Export identity and event counts
 
-Physical SVG exports include `data-generator="skullcat-studio"` and RDF/Dublin Core metadata identifying **Skullcat**, **mrmrs**, and this source repository. Attribution adds no plotted geometry.
+Physical SVG exports include `data-generator="skullcat-studio"` and RDF/Dublin Core metadata identifying **3D SVG**, the **Skullcat** mark, **mrmrs**, and this source repository. Attribution adds no plotted geometry.
 
 Anonymous event totals use the existing Cloudflare counter at `https://ts-gen-count.adam-f8f.workers.dev`:
 

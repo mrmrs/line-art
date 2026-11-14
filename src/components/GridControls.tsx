@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useViewSettings } from '../lib/view-settings';
 
-export function GridControls() {
+export function GridControls({ inline = false }: { inline?: boolean }) {
   const visible = useViewSettings(s => s.gridVisible);
   const style = useViewSettings(s => s.gridStyle);
   const spacing = useViewSettings(s => s.gridSpacingMm);
@@ -27,22 +27,23 @@ export function GridControls() {
   }, [open]);
 
   return (
-    <div className="grid-controls" ref={container} onBlur={event => {
+    <div className={`grid-controls${inline ? ' grid-controls-inline' : ''}`} ref={container} onBlur={event => {
       if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
     }} onKeyDown={event => {
       if (event.key === 'Escape' && open) {
         event.preventDefault(); setOpen(false); settingsButton.current?.focus();
       }
     }}>
-      <div className="button-group">
+      <div className="button-group" role="group" aria-label="Grid">
         <button className={`btn btn-sm btn-square grid-toggle${visible ? ' active' : ''}`} aria-label="Show grid" aria-pressed={visible} title={visible ? 'Hide grid' : 'Show grid'} onClick={() => setVisible(!visible)}>
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="1" /><path d="M6 2v12M10 2v12M2 6h12M2 10h12" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1" /><path d="M9 3v18M15 3v18M3 9h18M3 15h18" /></svg>
         </button>
-        <button className="btn btn-sm btn-square grid-settings-toggle" ref={settingsButton} aria-label="Grid settings" title="Grid settings" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}>
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true"><path d="m3 4 3 3 3-3" /></svg>
+        <button className="btn btn-sm btn-square grid-settings-toggle" ref={settingsButton} aria-label="Grid settings" title="Grid settings" aria-haspopup={inline ? undefined : 'dialog'} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg>
         </button>
       </div>
-      {open && <div className="grid-settings-popover" id={id} role="dialog" aria-label="Grid settings">
+      {inline && <span className="toolbar-label">Grid</span>}
+      {open && <div className={inline ? 'grid-settings-inline' : 'grid-settings-popover'} id={id} role={inline ? 'group' : 'dialog'} aria-label="Grid settings">
         <label className="grid-setting"><span>Spacing (mm)</span><input ref={spacingInput} className="input input-sm" type="number" min="1" max="100" step="1" value={spacing} onChange={event => {
           const value = event.currentTarget.valueAsNumber;
           if (Number.isFinite(value)) setSpacing(value);

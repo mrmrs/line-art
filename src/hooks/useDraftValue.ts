@@ -19,40 +19,45 @@ export function useDraftValue<T>(
   commit: (v: T) => void,
 ): [T, (v: T) => void] {
   const [draft, setDraftState] = useState<T>(stored);
-  const draftRef = useRef<T>(stored);
+  const pendingRef = useRef<{ value: T; commit: (v: T) => void } | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastCommittedRef = useRef<T>(stored);
+
+  const flush = useCallback(() => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (pending && !Object.is(pending.value, lastCommittedRef.current)) {
+      lastCommittedRef.current = pending.value;
+      // Keep the callback from the edit, even if selection changes on unmount.
+      pending.commit(pending.value);
+    }
+  }, []);
 
   // Sync down from upstream when the canonical value changes externally
   useEffect(() => {
     if (Object.is(stored, lastCommittedRef.current)) return;
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    pendingRef.current = null;
     setDraftState(stored);
-    draftRef.current = stored;
     lastCommittedRef.current = stored;
   }, [stored]);
 
   const setDraft = useCallback(
     (v: T) => {
-      draftRef.current = v;
+      pendingRef.current = { value: v, commit };
       setDraftState(v);
       if (rafRef.current != null) return;
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        const next = draftRef.current;
-        if (!Object.is(next, lastCommittedRef.current)) {
-          lastCommittedRef.current = next;
-          commit(next);
-        }
-      });
+      rafRef.current = requestAnimationFrame(flush);
     },
-    [commit],
+    [commit, flush],
   );
 
   useEffect(() => {
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+    return flush;
+  }, [flush]);
 
   return [draft, setDraft];
 }

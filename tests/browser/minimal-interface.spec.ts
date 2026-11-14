@@ -52,7 +52,9 @@ test('document pairs and every fill stay within the sidebar width', async ({ pag
   await expect(page.locator('.fill-card')).toHaveCount(4);
   for (const width of [1280, 900]) {
     await page.setViewportSize({ width, height: 900 });
+    if (width <= 1040) await page.getByRole('button', { name: 'Properties', exact: true }).click();
     const sidebar = page.locator('aside.properties');
+    await expect(sidebar).toBeVisible();
     expect(await sidebar.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const pairs = page.locator('.document-pair');
     for (const pair of await pairs.all()) {

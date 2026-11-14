@@ -7,7 +7,7 @@ test('fork renders scaled solids across cameras and exports at physical precisio
   page.on('pageerror', (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
-  await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
+  await expect(page.getByRole('img', { name: '3D SVG' })).toBeVisible();
   await page.evaluate(async () => {
     const { useSceneStore } = await import('/src/lib/store.ts');
     const { DEFAULT_TRANSFORM } = await import('/src/lib/types.ts');

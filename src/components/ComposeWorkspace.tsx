@@ -1,3 +1,4 @@
+import { ResponsivePanel } from './ResponsivePanel';
 import { GridOverlay } from './GridOverlay';
 import { randomizeComposition } from '../lib/randomize';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -12,7 +13,9 @@ import { useWorkerRender } from '../hooks/useWorkerRender';
 import { DocumentControls } from './DocumentControls';
 import './ComposeWorkspace.css';
 
-export function ComposeWorkspace({ node }: { node: SceneNode }) {
+export function ComposeWorkspace({ node, compact = false, propertiesOpen = false, onCloseProperties }: {
+  node: SceneNode; compact?: boolean; propertiesOpen?: boolean; onCloseProperties: () => void;
+}) {
   const p = node.params as CompositionParams;
   const update = useSceneStore(s => s.updateNodeParams);
   const updateNode = useSceneStore(s => s.updateNode);
@@ -86,7 +89,7 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
       onChange={e => { const value = e.currentTarget.valueAsNumber; if (Number.isFinite(value)) change({ [key]: value }); }} /></label>
   );
   return <>
-    <main className="compose-workspace">
+    <main className="compose-workspace" tabIndex={-1} data-workspace-focus aria-label="Composition canvas">
       <div className="compose-stage" ref={stageRef}>
         <div className="compose-paper" aria-label="Composition paper" style={{ width: p.widthMm * paperScale, height: p.heightMm * paperScale, background: settings.backgroundColor }}>
           <GridOverlay widthMm={p.widthMm} heightMm={p.heightMm} />
@@ -106,6 +109,7 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
         </div>
       </div>
     </main>
+    <ResponsivePanel compact={compact} open={propertiesOpen} title="Properties" onClose={onCloseProperties}>
     <aside className="properties compose-controls" aria-label="Packed composition controls">
       <DocumentControls />
       <div className="properties-header"><input className="input properties-name-input" aria-label="Layer title" value={node.name} onChange={event => updateNode(node.id, { name: event.target.value })} /></div>
@@ -169,6 +173,7 @@ export function ComposeWorkspace({ node }: { node: SceneNode }) {
         {render.error && <p role="alert" className="compose-error">{render.error} <button className="btn btn-xs" onClick={render.retry}>Retry preview</button></p>}
       </div>
     </aside>
+    </ResponsivePanel>
 
   </>;
 }

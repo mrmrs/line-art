@@ -1,0 +1,1 @@
+Interface fonts served locally. DM Sans (variable, weights 400–700) and IBM Plex Mono (400/500), Latin subsets from the Google Fonts CSS API / fonts.gstatic.com. SIL Open Font License texts are included. Existing fonts in the parent directory remain available for artwork generation.

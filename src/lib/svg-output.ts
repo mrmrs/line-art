@@ -5,7 +5,7 @@ export interface PenGroup {
   paths: ln.Paths;
 }
 // Attribution is metadata, never a plotted path or a watermark.
-const EXPORT_IDENTITY = `<metadata id="skullcat-provenance"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description rdf:about=""><dc:title>Skullcat plotter artwork</dc:title><dc:creator>mrmrs</dc:creator><dc:source>https://github.com/mrmrs/line-art</dc:source><dc:description>Created with Skullcat — the line art studio by mrmrs.</dc:description></rdf:Description></rdf:RDF></metadata>`;
+const EXPORT_IDENTITY = `<metadata id="skullcat-provenance"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description rdf:about=""><dc:title>3D SVG artwork</dc:title><dc:creator>mrmrs</dc:creator><dc:source>https://github.com/mrmrs/line-art</dc:source><dc:description>Created with 3D SVG by mrmrs. Skullcat mark by mrmrs.</dc:description></rdf:Description></rdf:RDF></metadata>`;
 
 // Drop adjacent coordinates that collapse at serialization precision. A zero-
 // length polyline otherwise becomes a visible dot with round stroke caps.

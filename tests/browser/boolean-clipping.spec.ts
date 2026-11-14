@@ -7,7 +7,7 @@ test('Boolean curves render once at final quality across views and export', asyn
   page.on('pageerror', (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
-  await expect(page.getByRole('img', { name: 'Studio mark' })).toBeVisible();
+  await expect(page.getByRole('img', { name: '3D SVG' })).toBeVisible();
   await page.evaluate(async () => {
     const { useSceneStore } = await import('/src/lib/store.ts');
     const store = useSceneStore.getState();

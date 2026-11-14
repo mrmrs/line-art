@@ -12,7 +12,7 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error);
     request.onblocked = () =>
       reject(
-        new Error('Close other ln.studio tabs to finish opening scene storage'),
+        new Error('Close other 3D SVG tabs to finish opening scene storage'),
       );
     request.onsuccess = () => resolve(request.result);
   });
