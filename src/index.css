@@ -32,6 +32,9 @@
 :root {
   color-scheme: dark;
   --color-bg: #0a0a0a;
+  --workspace: #0a0a0a;
+  --workspace-dot: #ffffff14;
+  --paper-shadow: 0 2px 3px #00000010, 0 16px 45px -18px #00000030;
   --color-surface: #141414;
   --color-surface-2: #1c1c1c;
   --color-surface-3: #292929;
@@ -72,6 +75,8 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --color-bg: #f0f0f0;
+  --workspace: #eeeeee;
+  --workspace-dot: #17171714;
   --color-surface: #fafafa;
   --color-surface-2: #ffffff;
   --color-surface-3: #eaeaea;
@@ -1038,7 +1043,14 @@ input[type="number"] {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--color-surface);
+}
+
+/* Match Image to SVG's workspace texture; this stays outside exported artwork. */
+.viewport,
+.compose-workspace .compose-stage {
+  background-color: var(--workspace);
+  background-image: radial-gradient(var(--workspace-dot) 0.65px, transparent 0.65px);
+  background-size: 12px 12px;
 }
 
 .viewport-overlay {
@@ -1247,7 +1259,7 @@ input[type="number"] {
 /* Paper-first composition workspace. Selection is immediate and stays vector. */
 .compose-workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--color-surface); color: var(--color-text); }
 .compose-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 14px 24px; }
-.compose-paper { position: relative; background: white; box-shadow: 0 4px 24px #20382c18, 0 1px 3px #20382c10; flex-shrink: 0; }
+.compose-paper { position: relative; background: white; box-shadow: var(--paper-shadow); flex-shrink: 0; }
 .compose-art, .compose-selection { position: absolute; inset: 0; width: 100%; height: 100%; }
 .compose-art { pointer-events: none; }
 .compose-art svg { width: 100%; height: 100%; display: block; }

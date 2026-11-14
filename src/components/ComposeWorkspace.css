@@ -20,7 +20,7 @@
   top: 50%;
   transform: translate(-50%, -50%);
   overflow: hidden;
-  box-shadow: 0 0 0 1px var(--color-border), 0 2px 8px #00000012;
+  box-shadow: var(--paper-shadow);
 }
 .compose-workspace .compose-hit:hover,
 .compose-workspace .compose-hit:focus-visible,
